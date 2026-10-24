@@ -162,9 +162,9 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 .sync{font-size:11px;color:var(--muted)}
 
 /* Cayo */
-:root{--gold:#B8860B;--cash:#1F8A4C;--art:#7B4BC4;--unk:#9AA4B2}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}}
-:root[data-theme="dark"]{--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}
+:root{--water:#B9D8EC;--gold:#B8860B;--cash:#1F8A4C;--art:#7B4BC4;--unk:#9AA4B2}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--water:#2E5268;--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}}
+:root[data-theme="dark"]{--water:#2E5268;--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}
 .heists{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .heist{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
 .heist[aria-pressed="true"]{border-color:var(--accent)}
@@ -178,13 +178,21 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 .cayo-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
 .mapbox svg{width:100%;height:auto;display:block}
 .mapbox .room{cursor:pointer}
-.mapbox .room rect.r{fill:var(--surface2);stroke:var(--line);stroke-width:1.5}
-.mapbox .room.sel rect.r{stroke:var(--accent);stroke-width:2.5}
-.mapbox .room:focus-visible rect.r{stroke:var(--accent);stroke-width:3}
+.mapbox svg.moving{touch-action:none}
+.mapbox .room.movable{cursor:grab}
+.mapbox .room.movable rect.r{stroke-dasharray:14 8;stroke:var(--accent)}
+.mapbox polygon.blk{fill:var(--line)}
+.mapbox .pool{fill:none;stroke:var(--water);stroke-width:46;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.mapbox .poolc{fill:var(--water)}
+.mapbox .gate{fill:var(--surface)}
+.mapbox text.lbl{font-size:58px}
+.mapbox .room rect.r{fill:var(--surface);stroke:var(--muted);stroke-width:5}
+.mapbox .room.sel rect.r{stroke:var(--accent);stroke-width:9}
+.mapbox .room:focus-visible rect.r{stroke:var(--accent);stroke-width:10}
 .mapbox text{fill:var(--fg);font-family:var(--body);font-size:11px;font-weight:700}
-.mapbox text.sm{fill:var(--muted);font-size:9px;font-weight:600}
-.mapbox .wall{fill:none;stroke:var(--muted);stroke-width:3}
-.mapbox .ground{fill:var(--bg)}
+.mapbox text.sm{fill:var(--muted);font-size:44px;font-weight:600}
+.mapbox .wall{fill:none;stroke:var(--muted);stroke-width:14;stroke-linejoin:round}
+.mapbox .ground{fill:var(--surface2)}
 .mapbox .house{fill:var(--surface);stroke:var(--muted);stroke-width:1.5}
 .mapbox .base{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3}
 .primbox{display:flex;flex-direction:column;gap:6px}
@@ -258,7 +266,7 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
       <div class="panel">
         <div class="toolbar"><h2 id="cayoTitle">Anwesen</h2><div style="display:flex;gap:6px;flex-wrap:wrap" id="cayoTools"></div></div>
         <div class="mapbox" id="cayoMap"></div>
-        <p class="hint">Schematische Skizze des Anwesens, nicht maßstabsgetreu. Tippe einen Raum an, um ihn zu bearbeiten.</p>
+        <div class="toolbar"><p class="hint" id="mapHint" style="flex:1;min-width:200px">Vereinfachte Karte. Tippe einen Raum an, um ihn zu bearbeiten.</p><button class="btn small" id="moveBtn" data-act="cayomove">Räume verschieben</button></div>
         <div class="primbox">
           <label class="subh" for="primSel">Hauptziel im Tresor</label>
           <select id="primSel"></select>
@@ -782,34 +790,64 @@ function bagPlan(h){
 const gen = n => /[sßxz]$/i.test(n) ? n + "’" : n + "s";
 const fmtStacks = n => Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toLocaleString("de-DE",{maximumFractionDigits:1});
 
+// Vereinfachte Nachzeichnung des Anwesens (Umrisse grob nach Spielkarte, Raumpositionen verschiebbar)
+const MAP_WALL = "865,55 1160,300 1340,395 1580,590 1470,740 1850,910 1375,1490 1310,1420 1190,1460 920,1700 780,1790 615,1650 580,1720 80,1480 130,1090 40,950";
+const MAP_BLOCKS = [
+  "690,280 850,95 890,130 725,318", "655,300 865,520 785,590 570,400", "245,550 335,600 130,1000 40,950",
+  "330,550 440,400 560,470 410,630", "540,780 680,850 585,1040 470,935", "710,870 860,965 760,1110 620,1030",
+  "970,740 1090,830 1020,925 880,830", "1170,320 1265,262 1355,385 1250,460", "1600,700 1720,775 1640,885 1550,820",
+  "1325,915 1370,840 1450,905 1400,965", "1585,1050 1640,1005 1695,1050 1640,1100", "1430,1300 1490,1250 1540,1300 1490,1350",
+  "735,1290 880,1170 990,1280 830,1400", "630,1360 710,1305 800,1440 720,1495", "440,1380 495,1285 610,1360 530,1450",
+  "155,1040 295,1080 270,1155 155,1120", "330,1090 470,1130 445,1205 330,1170", "80,1480 115,1375 260,1440 220,1545",
+  "300,1490 340,1420 555,1530 500,1630", "765,1560 840,1510 920,1640 850,1690", "915,1510 1090,1400 1170,1460 960,1620",
+  "945,1100 990,1045 1035,1100 980,1160", "1410,800 1490,720 1560,780 1480,860"
+];
+const MAP_DEFAULT_POS = { north:{x:1000,y:330}, west:{x:330,y:820}, south:{x:780,y:1500}, office:{x:1010,y:960}, basement:{x:800,y:1180} };
+let moving = false, drag = null;
+const roomPos = key => (state.cayo && state.cayo.pos && state.cayo.pos[key]) || MAP_DEFAULT_POS[key];
+
 function mapSVG(h){
-  // Schematische Anordnung: Lager an den Außenseiten, Haupthaus mittig, Keller darunter
-  const pos = {
-    north:{x:130,y:34,w:110,h:46}, west:{x:30,y:112,w:78,h:82}, south:{x:130,y:226,w:110,h:46},
-    office:{x:206,y:104,w:76,h:44}, basement:{x:142,y:160,w:138,h:46}
+  const marker = r => {
+    const p = roomPos(r.key), sl = slotList(r), w = Math.max(250, 60 + sl.length*50);
+    const dots = sl.map((s,i) => {
+      const v = slotVal(h,s.id), t = slotTaken(h,s.id);
+      const fill = v==="gold"?"var(--gold)":v==="cash"?"var(--cash)":v==="art"?"var(--art)":v==="none"?"var(--surface)":"var(--unk)";
+      const cx = -((sl.length-1)*50)/2 + i*50, cy = 30;
+      return `<circle cx="${cx}" cy="${cy}" r="18" fill="${fill}" stroke="var(--muted)" stroke-width="${v==="none"?5:0}" opacity="${t?0.35:1}"/>${t?`<path d="M${cx-10} ${cy} l7 8 l13 -16" stroke="var(--fg)" stroke-width="6" fill="none"/>`:""}`;
+    }).join("");
+    return `<g class="room ${selRoom===r.key?"sel":""} ${moving?"movable":""}" data-act="room" data-room="${r.key}" transform="translate(${p.x} ${p.y})" tabindex="0" role="button" aria-label="${esc(r.name)}">
+      <rect class="r" x="${-w/2}" y="-62" width="${w}" height="124" rx="22"/>
+      <text class="lbl" x="0" y="-12" text-anchor="middle">${esc(r.name)}</text>${dots}</g>`;
   };
-  const dots = (r, p) => slotList(r).map((s,i) => {
-    const v = slotVal(h,s.id), t = slotTaken(h,s.id);
-    const fill = v==="gold"?"var(--gold)":v==="cash"?"var(--cash)":v==="art"?"var(--art)":v==="none"?"var(--surface)":"var(--unk)";
-    const cx = p.x + 12 + i*15, cy = p.y + p.h - 11;
-    return `<circle cx="${cx}" cy="${cy}" r="5.5" fill="${fill}" stroke="var(--muted)" stroke-width="${v==="none"?1.2:0}" opacity="${t?0.35:1}"/>${t?`<path d="M${cx-3} ${cy} l2 2.5 l4 -5" stroke="var(--fg)" stroke-width="1.6" fill="none"/>`:""}`;
-  }).join("");
-  const room = r => { const p = pos[r.key]; return `<g class="room ${selRoom===r.key?"sel":""}" data-act="room" data-room="${r.key}" tabindex="0" role="button" aria-label="${esc(r.name)}">
-      <rect class="r" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="6"/>
-      <text x="${p.x+10}" y="${p.y+16}">${esc(r.name)}</text>${dots(r,p)}</g>`; };
-  return `<svg viewBox="0 0 360 300" role="img" aria-label="Schematische Karte von El Rubios Anwesen">
-    <rect class="ground" x="0" y="0" width="360" height="300" rx="14"/>
-    <rect class="wall" x="18" y="22" width="324" height="262" rx="18"/>
-    <rect class="house" x="132" y="96" width="156" height="118" rx="8"/>
-    <text class="sm" x="140" y="112">HAUPTHAUS</text>
-    <rect class="base" x="138" y="156" width="146" height="54" rx="6"/>
-    <text class="sm" x="292" y="192" text-anchor="start">Tresor</text>
-    <rect x="290" y="166" width="14" height="14" rx="3" fill="${h.primary?"var(--accent)":"var(--unk)"}"/>
-    <g><text x="322" y="44" text-anchor="middle" class="sm">N</text><path d="M322 48 l-5 12 h10 z" fill="var(--muted)"/></g>
-    ${CAYO_ROOMS.map(room).join("")}
+  return `<svg viewBox="0 0 1900 1840" role="img" aria-label="Vereinfachte Karte von El Rubios Anwesen" id="cayoSvg" class="${moving?"moving":""}">
+    <polygon class="ground" points="${MAP_WALL}"/>
+    ${MAP_BLOCKS.map(b => `<polygon class="blk" points="${b}"/>`).join("")}
+    <polygon class="wall" points="${MAP_WALL}"/>
+    <path class="pool" d="M1290 1140 L1320 1225 L1290 1330 M1320 1225 L1395 1232"/><circle class="poolc" cx="1405" cy="1232" r="24"/>
+    <text class="sm" x="1340" y="1395" text-anchor="middle">Pool</text>
+    <polygon class="gate" points="745,1595 775,1580 825,1665 795,1680"/><text class="sm" x="700" y="1760" text-anchor="middle">Haupttor</text>
+    ${CAYO_ROOMS.map(marker).join("")}
   </svg>`;
 }
-
+function svgPoint(svg, e){ const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+document.addEventListener("pointerdown", e => {
+  if(!moving) return;
+  const g = e.target.closest && e.target.closest('#cayoSvg g.room'); if(!g) return;
+  const svg = g.ownerSVGElement, p = svgPoint(svg, e), cur = roomPos(g.dataset.room);
+  drag = { g, key:g.dataset.room, dx:p.x-cur.x, dy:p.y-cur.y, x:cur.x, y:cur.y, id:e.pointerId };
+  try{ g.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+document.addEventListener("pointermove", e => {
+  if(!drag || e.pointerId !== drag.id) return;
+  const p = svgPoint(drag.g.ownerSVGElement, e);
+  drag.x = Math.round(Math.min(1780, Math.max(120, p.x - drag.dx))); drag.y = Math.round(Math.min(1770, Math.max(70, p.y - drag.dy)));
+  drag.g.setAttribute("transform", `translate(${drag.x} ${drag.y})`);
+});
+document.addEventListener("pointerup", e => {
+  if(!drag || e.pointerId !== drag.id) return;
+  ensureCayo(); state.cayo.pos = {...(state.cayo.pos||{}), [drag.key]:{x:drag.x, y:drag.y}}; drag = null; saveState();
+});
 function renderCayo(){
   const h = ensureCayo();
   $("#heistChips").innerHTML = state.cayo.heists.map((x,i) => { const c = tally(x); return `
@@ -827,6 +865,8 @@ function renderCayo(){
        <button class="btn small ghost danger" data-act="cayoreset">${resetArmed?"Wirklich leeren?":"Neu auskundschaften"}</button>
        <button class="btn small primary" data-act="cayodone">Abgeschlossen</button>`;
   $("#cayoMap").innerHTML = mapSVG(h);
+  $("#moveBtn").textContent = moving ? "Fertig" : "Räume verschieben"; $("#moveBtn").classList.toggle("primary", moving);
+  $("#mapHint").textContent = moving ? "Zieh jeden Raum auf das richtige Gebäude. Die Positionen gelten für beide Durchgänge." : "Vereinfachte Karte. Tippe einen Raum an, um ihn zu bearbeiten.";
 
   $("#primSel").innerHTML = `<option value="">– noch nicht gesehen –</option>` + PRIMARY.map(p => `<option ${p===h.primary?"selected":""}>${esc(p)}</option>`).join("");
 
@@ -894,6 +934,8 @@ document.addEventListener("click", e => {
     else if(t.kind === "cooldown") toast(biz.name + ": Cooldown läuft.", {label:"Auszahlung eintragen", run: () => openForm("in", biz.tag==="Heist"?"Heist":"Contract / Mission", biz.name)});
   }
   if(act === "heist"){ cayoSel = Number(b.dataset.i); selRoom = null; renamingHeist = false; resetArmed = false; renderCayo(); }
+  if(act === "cayomove"){ moving = !moving; renderCayo(); }
+  if(act === "room" && moving) return;
   if(act === "room"){ selRoom = b.dataset.room; renderCayo(); const el = document.getElementById("room-"+selRoom); if(el) el.scrollIntoView({behavior:"smooth", block:"nearest"}); }
   if(act === "slot"){
     const h = ensureCayo(), sid = b.dataset.slot, v = b.dataset.v;
