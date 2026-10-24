@@ -738,7 +738,14 @@ const PRIMARY = ["Sinsimito Tequila","Rubin-Halskette","Inhaberschuldverschreibu
 const BAG = { gold: 66.67, art: 50, cash: 25 };   // Taschenplatz pro voller Beute in %, Richtwerte
 const ORDER = ["gold","art","cash"];               // grob nach Wert pro Taschenplatz
 const LOOT_NAME = { gold:"Gold", cash:"Bargeld", art:"Gemälde", none:"Leer", "?":"Unbekannt" };
-let cayoSel = 0, selRoom = null, renamingHeist = false, resetArmed = false;
+let cayoSel = 0, selRoom = null, renamingHeist = false, resetArmed = false, sorting = false;
+function orderedRooms(){
+  const ord = (state.cayo && Array.isArray(state.cayo.order)) ? state.cayo.order : [];
+  const byKey = Object.fromEntries(CAYO_ROOMS.map(r => [r.key, r]));
+  const out = ord.filter(k => byKey[k]).map(k => byKey[k]);
+  CAYO_ROOMS.forEach(r => { if(!out.includes(r)) out.push(r); });
+  return out;
+}
 
 function newHeist(name){ return { id: uid(), name, primary:"", players:2, slots:{} }; }
 function ensureCayo(){
@@ -832,15 +839,16 @@ function renderCayo(){
     ${plan.take.length && plan.left > 1 ? `<p class="hint">Noch ${Math.round(plan.left)} % frei – den Rest außerhalb des Anwesens auffüllen.</p>` : ""}
     <p class="hint">Platzbedarf pro Stapel als Richtwert: Gold ca. 67 %, Gemälde 50 %, Bargeld 25 %. ${h.players===1?"Solo zählen nur die Bilder im Büro, die Lager brauchen eine zweite Person.":""}</p>`;
 
-  $("#roomList").innerHTML = CAYO_ROOMS.map(r => `
+  const rooms = orderedRooms();
+  $("#roomList").innerHTML = `<div class="toolbar"><span class="subh">Räume in Kamera-Reihenfolge</span><button class="btn small ${sorting?"primary":""}" data-act="cayosort">${sorting?"Fertig":"Reihenfolge ändern"}</button></div>` + rooms.map((r,i) => `
     <div class="roomcard ${selRoom===r.key?"sel":""}" id="room-${r.key}">
-      <h4>${esc(r.name)} <small>${esc(r.sub)}${r.keycard?" · Schlüsselkarte":""}</small></h4>
-      ${slotList(r).map(s => { const v = slotVal(h,s.id); const opts = s.kind==="table" ? ["gold","cash","none"] : ["art","none"]; return `
+      <h4><span>${i+1}. ${esc(r.name)}</span> ${sorting ? `<span class="tact"><button class="btn small" data-act="roomup" data-room="${r.key}" ${i===0?"disabled":""} aria-label="${esc(r.name)} nach oben">↑</button><button class="btn small" data-act="roomdown" data-room="${r.key}" ${i===rooms.length-1?"disabled":""} aria-label="${esc(r.name)} nach unten">↓</button></span>` : `<small>${esc(r.sub)}${r.keycard?" · Schlüsselkarte":""}</small>`}</h4>
+      ${sorting ? "" : slotList(r).map(s => { const v = slotVal(h,s.id); const opts = s.kind==="table" ? ["gold","cash","none"] : ["art","none"]; return `
         <div class="slot"><span class="sl">${s.label}</span>
           <div class="opts">${opts.map(o => `<button type="button" class="opt ${o}" data-act="slot" data-slot="${s.id}" data-v="${o}" aria-pressed="${v===o}">${LOOT_NAME[o]}</button>`).join("")}</div>
           <label class="taken"><input type="checkbox" data-act="taken" data-slot="${s.id}" ${slotTaken(h,s.id)?"checked":""} ${v==="?"||v==="none"?"disabled":""}> eingepackt</label>
         </div>`; }).join("")}
-      ${r.key==="office" ? `<p class="hint">Der Wandtresor im Büro hat immer Bargeld und braucht keinen Taschenplatz.</p>` : ""}
+      ${!sorting && r.key==="office" ? `<p class="hint">Der Wandtresor im Büro hat immer Bargeld und braucht keinen Taschenplatz.</p>` : ""}
     </div>`).join("");
 }
 $("#primSel").addEventListener("change", e => { ensureCayo().primary = e.target.value; saveState(); renderCayo(); });
@@ -894,6 +902,12 @@ document.addEventListener("click", e => {
     selRoom = sid.split(".")[0]; saveState(); renderCayo();
   }
   if(act === "taken"){ const h = ensureCayo(), sid = b.dataset.slot; h.slots[sid] = {...(h.slots[sid]||{v:"?"}), t: b.checked}; saveState(); renderCayo(); }
+  if(act === "cayosort"){ sorting = !sorting; renderCayo(); }
+  if(act === "roomup" || act === "roomdown"){
+    ensureCayo(); const keys = orderedRooms().map(r => r.key), i = keys.indexOf(b.dataset.room), j = act==="roomup" ? i-1 : i+1;
+    if(i >= 0 && j >= 0 && j < keys.length){ [keys[i], keys[j]] = [keys[j], keys[i]]; state.cayo.order = keys; saveState(); renderCayo();
+      const nb = document.querySelector(`[data-act="${act}"][data-room="${b.dataset.room}"]`); if(nb && !nb.disabled) nb.focus(); }
+  }
   if(act === "cayoplayers"){ const h = ensureCayo(); h.players = h.players === 1 ? 2 : 1; saveState(); renderCayo(); }
   if(act === "cayorename"){ renamingHeist = true; renderCayo(); const i = $("#heistNameInput"); if(i){ i.focus(); i.select(); } }
   if(act === "cayoreset"){
