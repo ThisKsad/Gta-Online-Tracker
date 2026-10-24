@@ -503,12 +503,12 @@ function changePlayer(){
 
 /* ---------- Timer-Logik ---------- */
 function shouldRun(t){ return t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t) < t.min*60000; }
-function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? now - t.resumedAt : 0); }
+function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? Math.max(0, now - t.resumedAt) : 0); }
 function settle(now = Date.now()){
   // Laufzeiten an den Schaltzustand anpassen (nach Online-/Pause-Wechsel)
   state.biz.forEach(b => b.timers.forEach(t => {
     const run = t.armed && !t.paused && (!t.onlineOnly || state.online);
-    if(t.resumedAt && !run){ t.elapsed += now - t.resumedAt; t.resumedAt = null; }
+    if(t.resumedAt && !run){ t.elapsed += Math.max(0, now - t.resumedAt); t.resumedAt = null; }
     else if(!t.resumedAt && run){ t.resumedAt = now; }
   }));
 }
@@ -546,10 +546,12 @@ function toast(msg, action){
 function syncHeader(){
   $("#onlineBtn").setAttribute("aria-checked", String(state.online));
   const auto = presence && presence.enabled && presence.steam_id;
-  let sub = state.online ? "Produktion läuft" : "Produktion pausiert";
+  const pend = state.online && state.sessionStartAt && state.sessionStartAt > Date.now();
+  let sub = pend ? "Timer starten in " + fmtClock(state.sessionStartAt - Date.now()) : state.online ? "Produktion läuft" : "Produktion pausiert";
   if(auto){
     const age = presence.checked_at ? Math.round((Date.now() - new Date(presence.checked_at).getTime())/60000) : null;
     sub = presence.last_error ? "Steam: " + presence.last_error
+      : pend ? "Steam erkannt · Timer starten in " + fmtClock(state.sessionStartAt - Date.now())
       : "Automatisch über Steam" + (age === null ? "" : age <= 1 ? " · gerade geprüft" : " · vor " + age + " Min geprüft");
   }
   $("#onlineLbl").innerHTML = (state.online ? "In einer Session" : "Offline") + "<small>" + esc(sub) + "</small>";
@@ -565,6 +567,7 @@ function timerStatus(t, now){
   const pct = Math.min(100, el/total*100);
   if(t.paused) return {cls:"st-hold", txt:"Pausiert", left, pct, done:false};
   if(t.onlineOnly && !state.online) return {cls:"st-hold", txt:"Offline", left, pct, done:false};
+  if(t.resumedAt && t.resumedAt > now) return {cls:"st-hold", txt:"Startet in " + fmtClock(t.resumedAt - now), left, pct, done:false};
   return {cls:"st-run", txt:"Läuft", left, pct, done:false};
 }
 function startLabel(t){ return t.kind==="supply" ? "Nachschub gekauft" : t.kind==="cooldown" ? "Gerade gemacht" : t.kind==="stock" ? "Gerade geleert" : "Starten"; }
@@ -607,6 +610,7 @@ function sig(){ return state.biz.map(b => b.id + ":" + b.timers.map(t => t.id+t.
 
 function tick(){
   const now = Date.now();
+  if(state.sessionStartAt && state.sessionStartAt > now - 2000) syncHeader();
   let notify = [];
   state.biz.forEach(b => b.timers.forEach(t => {
     const el = document.querySelector(`[data-timer="${t.id}"]`);
@@ -903,7 +907,7 @@ function renderCayo(){
 $("#primSel").addEventListener("change", e => { ensureCayo().primary = e.target.value; saveState(); renderCayo(); });
 
 /* ---------- Ereignisse ---------- */
-$("#onlineBtn").onclick = () => { state.online = !state.online; settle(); saveState(); syncHeader(); tick(); };
+$("#onlineBtn").onclick = () => { state.online = !state.online; state.sessionStartAt = null; settle(); saveState(); syncHeader(); tick(); };
 $("#soundBtn").onclick = () => { state.sound = !state.sound; saveState(); syncHeader(); if(state.sound) beep(); };
 $("#playerBtn").onclick = changePlayer;
 $("#addBizBtn").onclick =() => { addOpen = !addOpen; renderAddPanel(); };
