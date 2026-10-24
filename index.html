@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0F131A">
+<title>GTA Business Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Figtree:wght@400;500;600;700&family=Chivo+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: Kopfzeile mit Session-Schalter, zwei Ansichten (Timer-Raster / Kasse), Formular als Bottom-Sheet */
+:root{
+  --bg:#ECEFF3; --surface:#FFFFFF; --surface2:#F5F7FA; --fg:#131921; --muted:#5A6574; --line:#D4DAE2;
+  --accent:#D92F68; --accent-ink:#FFFFFF; --accent-soft:#FBE3EB;
+  --good:#11804F; --good-soft:#DDF3E8; --bad:#C23B2B; --bad-soft:#FBE4E0; --warn:#B57A06; --warn-soft:#FBF0D6;
+  --display:"Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"Chivo Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F131A; --surface:#171E28; --surface2:#1D2531; --fg:#E6EBF1; --muted:#8E9AAA; --line:#2A3442;
+  --accent:#FF5A8C; --accent-ink:#1A0610; --accent-soft:#3A1A27;
+  --good:#3CCB85; --good-soft:#123326; --bad:#FF6E5A; --bad-soft:#3A1C18; --warn:#F2B33D; --warn-soft:#352812;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F131A; --surface:#171E28; --surface2:#1D2531; --fg:#E6EBF1; --muted:#8E9AAA; --line:#2A3442;
+  --accent:#FF5A8C; --accent-ink:#1A0610; --accent-soft:#3A1A27;
+  --good:#3CCB85; --good-soft:#123326; --bad:#FF6E5A; --bad-soft:#3A1C18; --warn:#F2B33D; --warn-soft:#352812;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px;padding-top:22px}
+.brand h1{font-family:var(--display);font-weight:800;font-size:clamp(30px,6vw,44px);line-height:.95;margin:0;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:13px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.switch{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 14px 6px 6px}
+.switch button{width:46px;height:26px;border-radius:999px;border:none;background:var(--line);position:relative;transition:background .2s}
+.switch button::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--surface);transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.switch button[aria-checked="true"]{background:var(--good)}
+.switch button[aria-checked="true"]::after{transform:translateX(20px)}
+.switch .lbl{font-size:13px;font-weight:600}
+.switch .lbl small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.iconbtn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:600}
+
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+nav.tabs button{background:none;border:none;padding:10px 14px;font-family:var(--display);font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+
+.hint{font-size:13px;color:var(--muted);margin:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 14px;font-weight:600;font-size:14px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:6px 10px;font-size:13px}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.biz{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.biz-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+.biz-head h3{margin:0;font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.02em;line-height:1}
+.biz-head .tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.timer{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.timer + .timer{border-top:1px dashed var(--line)}
+.trow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tname{font-weight:600;font-size:14px}
+.state{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.st-idle{background:var(--surface2);color:var(--muted)}
+.st-run{background:var(--good-soft);color:var(--good)}
+.st-hold{background:var(--warn-soft);color:var(--warn)}
+.st-done{background:var(--bad-soft);color:var(--bad)}
+.clock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;font-weight:600;line-height:1;letter-spacing:-.01em}
+.clock.done{color:var(--bad)}
+.bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .5s linear}
+.bar.done i{background:var(--bad)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted);align-items:center}
+.meta button.dur{border:none;background:none;padding:0;color:var(--muted);text-decoration:underline dotted;text-underline-offset:3px;font-size:12px}
+.tact{display:flex;flex-wrap:wrap;gap:6px}
+.biz-foot{margin-top:auto;padding:10px 14px;background:var(--surface2);display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--line)}
+.durform{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.durform input{width:72px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+
+.addpanel{background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface2);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* Kasse */
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.kpi .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:clamp(18px,3.4vw,28px);font-weight:600;margin-top:4px;overflow-wrap:anywhere}
+.v.pos{color:var(--good)} .v.neg{color:var(--bad)}
+.panels{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel h2{margin:0;font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;letter-spacing:.03em}
+.chart{display:flex;align-items:stretch;gap:3px;height:150px;position:relative}
+.chart .col{flex:1;display:flex;flex-direction:column;min-width:0}
+.chart .up,.chart .down{flex:1;display:flex;position:relative}
+.chart .up{align-items:flex-end}
+.chart .down{align-items:flex-start}
+.chart .up i{width:100%;background:var(--good);border-radius:3px 3px 0 0;min-height:0}
+.chart .down i{width:100%;background:var(--bad);border-radius:0 0 3px 3px;opacity:.85}
+.chart .axis{position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--line)}
+.chart-x{display:flex;gap:3px;font-size:10px;color:var(--muted);font-family:var(--mono)}
+.chart-x span{flex:1;text-align:center;min-width:0;overflow:hidden}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cats{display:flex;flex-direction:column;gap:8px}
+.cat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:13px}
+.cat .cb{grid-column:1/-1;height:6px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.cat .cb i{display:block;height:100%}
+.cat .amt{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.subh{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:4px 0 0}
+.list{display:flex;flex-direction:column}
+.day{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:12px 0 6px;border-bottom:1px solid var(--line)}
+.entry{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.dot{width:8px;height:8px;border-radius:50%}
+.entry .what{min-width:0}
+.entry .what b{display:block;font-weight:600;font-size:14px}
+.entry .what small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.entry .amt{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.entry .x{border:none;background:none;color:var(--muted);font-size:12px;padding:4px 6px;border-radius:6px}
+.entry .x.armed{background:var(--bad-soft);color:var(--bad);font-weight:700}
+.empty{padding:22px 10px;text-align:center;color:var(--muted);font-size:14px;border:1px dashed var(--line);border-radius:10px}
+
+/* Sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:520px;border-radius:16px 16px 0 0;
+  padding:18px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));
+  display:flex;flex-direction:column;gap:12px;max-height:92vh;overflow:auto}
+@media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:16px}}
+.sheet h2{margin:0;font-family:var(--display);font-weight:800;font-size:26px;text-transform:uppercase}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:none;background:var(--surface2);padding:10px;font-weight:700}
+.seg button[aria-pressed="true"].in{background:var(--good);color:#fff}
+.seg button[aria-pressed="true"].out{background:var(--bad);color:#fff}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.field input,.field select{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);width:100%}
+.field input.big{font-family:var(--mono);font-size:22px;font-variant-numeric:tabular-nums}
+.field .help{font-size:12px;color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet .acts{display:flex;gap:8px;justify-content:flex-end}
+.err{color:var(--bad);font-size:13px;margin:0}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--fg);color:var(--bg);
+  padding:10px 14px;border-radius:10px;font-size:14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.toast button{background:var(--accent);color:var(--accent-ink);border:none;border-radius:6px;padding:5px 10px;font-weight:700;font-size:13px}
+.toast .close{background:transparent;color:var(--bg);opacity:.7}
+.sync{font-size:11px;color:var(--muted)}
+
+@media (max-width:720px){
+  .panels{grid-template-columns:minmax(0,1fr)}
+  .kpis{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .kpis .kpi:last-child{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Business<span>/</span>Tracker</h1>
+      <p>Timer für deine Geschäfte und ein Kassenbuch für jeden Dollar.</p>
+    </div>
+    <div class="controls">
+      <div class="switch">
+        <button id="onlineBtn" role="switch" aria-checked="true" aria-label="In einer Session"></button>
+        <div class="lbl" id="onlineLbl">In einer Session<small>Produktion läuft</small></div>
+      </div>
+      <button class="iconbtn" id="soundBtn" aria-pressed="true">Ton an</button>
+      <button class="iconbtn" id="playerBtn">Spieler: Lukas</button>
+      <div id="playerHost"></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-timer" aria-selected="true" data-view="timer">Timer</button>
+    <button role="tab" id="tab-kasse" aria-selected="false" data-view="kasse">Kasse</button>
+  </nav>
+
+  <section id="view-timer" style="display:flex;flex-direction:column;gap:14px">
+    <div class="toolbar">
+      <p class="hint">In GTA Online laufen Nachschub und Produktion nur, solange du in einer Session bist. Schalte oben auf „Offline“, wenn du aufhörst. Die Zeiten sind Richtwerte für voll ausgebaute Geschäfte; tippe auf eine Dauer, um sie anzupassen.</p>
+      <button class="btn primary" id="addBizBtn">+ Geschäft</button>
+    </div>
+    <div id="addPanel" class="addpanel" hidden></div>
+    <div class="grid" id="bizGrid"></div>
+  </section>
+
+  <section id="view-kasse" hidden style="flex-direction:column;gap:14px">
+    <div class="toolbar">
+      <div class="chips" id="periodChips">
+        <button class="chip" data-p="week" aria-pressed="true">GTA-Woche (ab Do)</button>
+        <button class="chip" data-p="30" aria-pressed="false">30 Tage</button>
+        <button class="chip" data-p="all" aria-pressed="false">Gesamt</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="addOutBtn">− Ausgabe</button>
+        <button class="btn primary" id="addInBtn">+ Einnahme</button>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Einnahmen</div><div class="v pos num" id="kIn">$0</div></div>
+      <div class="kpi"><div class="k">Ausgaben</div><div class="v neg num" id="kOut">$0</div></div>
+      <div class="kpi"><div class="k">Bilanz</div><div class="v num" id="kNet">$0</div></div>
+    </div>
+    <div class="panels">
+      <div class="panel">
+        <h2>Letzte 14 Tage</h2>
+        <div class="chart" id="chart"></div>
+        <div class="chart-x" id="chartX"></div>
+        <div class="legend"><span><b style="background:var(--good)"></b>Einnahmen</span><span><b style="background:var(--bad)"></b>Ausgaben</span></div>
+      </div>
+      <div class="panel">
+        <h2>Wofür</h2>
+        <div id="cats" class="cats"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Buchungen</h2>
+      <div class="list" id="list"></div>
+    </div>
+    <p class="sync" id="syncNote"></p>
+  </section>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <form class="sheet" id="entryForm" novalidate>
+    <h2 id="formTitle">Buchung</h2>
+    <div class="seg">
+      <button type="button" class="in" id="segIn" aria-pressed="true">Einnahme</button>
+      <button type="button" class="out" id="segOut" aria-pressed="false">Ausgabe</button>
+    </div>
+    <div class="field">
+      <label for="fAmount">Betrag in GTA$</label>
+      <input id="fAmount" class="big" inputmode="decimal" autocomplete="off" placeholder="z. B. 1,2m oder 250k">
+      <span class="help" id="amountPreview">Kürzel: k = Tausend, m = Million</span>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="fCat">Kategorie</label><select id="fCat"></select></div>
+      <div class="field"><label for="fDate">Zeitpunkt</label><input id="fDate" type="datetime-local"></div>
+    </div>
+    <div class="field"><label for="fNote">Notiz</label><input id="fNote" autocomplete="off" placeholder="z. B. Bunker, Verkauf in Blaine County"></div>
+    <p class="err" id="fErr" hidden></p>
+    <div class="acts">
+      <button type="button" class="btn ghost" id="fCancel">Abbrechen</button>
+      <button type="submit" class="btn primary">Speichern</button>
+    </div>
+  </form>
+</div>
+<div id="toastHost"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+"use strict";
+/* ---------- Stammdaten ---------- */
+const PRESETS = [
+  {key:"bunker", name:"Bunker", tag:"Waffenhandel", timers:[{label:"Nachschub", min:140, onlineOnly:true, kind:"supply"},{label:"Lager voll", min:700, onlineOnly:true, kind:"stock"}]},
+  {key:"nightclub", name:"Nachtclub", tag:"Lagerhaus", timers:[{label:"Lager voll", min:1200, onlineOnly:true, kind:"stock"},{label:"Tresor voll", min:960, onlineOnly:true, kind:"stock"}]},
+  {key:"acid", name:"Acid Lab", tag:"Brickade", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
+  {key:"coke", name:"Kokain", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
+  {key:"meth", name:"Meth", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
+  {key:"cash", name:"Falschgeld", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
+  {key:"weed", name:"Gras", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
+  {key:"docs", name:"Ausweise", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
+  {key:"agency", name:"Agentur", tag:"Tresor", timers:[{label:"Tresor voll", min:960, onlineOnly:true, kind:"stock"}]},
+  {key:"cayo", name:"Cayo Perico", tag:"Heist", timers:[{label:"Cooldown", min:144, onlineOnly:false, kind:"cooldown"}]},
+  {key:"ceo", name:"CEO-Arbeit", tag:"Cooldown", timers:[{label:"Cooldown", min:5, onlineOnly:false, kind:"cooldown"}]}
+];
+const CATS = {
+  in: ["Business-Verkauf","Heist","Contract / Mission","Tresor (Nachtclub, Agentur …)","Fahrzeugverkauf","Sonstiges"],
+  out:["Nachschub","Fahrzeug","Immobilie / Geschäft","Upgrades & Tuning","Heist-Vorbereitung","Waffen & Munition","Sonstiges"]
+};
+const CAT_COLORS = ["var(--accent)","var(--good)","var(--warn)","var(--muted)","var(--bad)","var(--fg)","var(--line)"];
+
+/* ---------- Helfer ---------- */
+const $ = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const money = n => (n<0?"−":"") + "$" + Math.abs(Math.round(n)).toLocaleString("de-DE");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function parseAmount(raw){
+  let s = String(raw||"").toLowerCase().replace(/\s|\$/g,"");
+  if(!s) return NaN;
+  let mult = 1;
+  const m = s.match(/(mio|m|tsd|k)$/);
+  if(m){ mult = (m[1]==="m"||m[1]==="mio") ? 1e6 : 1e3; s = s.slice(0,-m[1].length); return parseFloat(s.replace(/\./g,"").replace(",", ".")) * mult; }
+  if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g,"");
+  s = s.replace(",", ".");
+  return parseFloat(s);
+}
+function fmtClock(ms){
+  ms = Math.max(0, ms);
+  const t = Math.ceil(ms/1000), h = Math.floor(t/3600), m = Math.floor(t%3600/60), sec = t%60;
+  return (h? h+":"+String(m).padStart(2,"0") : String(m)) + ":" + String(sec).padStart(2,"0");
+}
+function fmtDur(min){ const h=Math.floor(min/60), m=min%60; return h ? (h+" Std"+(m?" "+m+" Min":"")) : (m+" Min"); }
+function parseDur(s){
+  s = String(s).trim();
+  if(/^\d+:\d{1,2}$/.test(s)){ const [h,m]=s.split(":").map(Number); return h*60+m; }
+  const n = parseFloat(s.replace(",", ".")); return isFinite(n) ? Math.round(n) : NaN;
+}
+const lsGet = k => { try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }catch(e){ return null; } };
+const lsSet = (k,v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+
+function makeBiz(preset){
+  return { id: uid(), name: preset.name, tag: preset.tag || "", timers: preset.timers.map(t => ({
+    id: uid(), label: t.label, min: t.min, onlineOnly: t.onlineOnly, kind: t.kind,
+    armed:false, paused:false, elapsed:0, resumedAt:null, notified:false })) };
+}
+function defaultState(){
+  return { v:1, online:true, sound:true, biz:[makeBiz(PRESETS[0]), makeBiz(PRESETS[1]), makeBiz(PRESETS[2])] };
+}
+
+/* ---------- Zustand ---------- */
+let state = lsGet("gtabt.state") || defaultState();
+let entries = lsGet("gtabt.entries") || [];
+let view = (location.hash === "#kasse") ? "kasse" : "timer";
+let period = "week";
+let addOpen = false;
+let editDur = null;      // timer id in edit mode
+let armedDelete = null;  // entry id armed for delete
+
+/* ---------- Speicher (Supabase, Browser als Zwischenspeicher) ---------- */
+const SB_URL = "https://dwsieddjvldzurosjdpp.supabase.co";
+const SB_KEY = "sb_publishable_SREC_XokfKppXeP7rTgnMQ_-2ZyEXMp";
+let sb = null, player = lsGet("gtabt.player") || "Lukas", saveTimer = null, saving = Promise.resolve(), syncMode = "local", lastLocalWrite = 0;
+try{ if(window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){ console.warn(e); }
+const rowToEntry = r => ({ id:r.id, type:r.type, amount:Number(r.amount), cat:r.cat, note:r.note||"", ts:new Date(r.ts).getTime() });
+
+function saveState(){
+  lsSet("gtabt.state", state);
+  if(!sb) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const body = JSON.parse(JSON.stringify(state)); lastLocalWrite = Date.now();
+    saving = saving.then(async () => {
+      const { error } = await sb.from("gta_state").upsert({ player, data: body, updated_at: new Date().toISOString() });
+      if(error){ syncMode = "error"; updateSync(); } else if(syncMode !== "cloud"){ syncMode = "cloud"; updateSync(); }
+    });
+  }, 400);
+}
+async function addEntry(e){
+  entries = [e, ...entries.filter(x => x.id !== e.id)].sort((a,b)=>b.ts-a.ts);
+  lsSet("gtabt.entries", entries); renderKasse();
+  if(!sb) return;
+  const { error } = await sb.from("gta_entries").insert({ id:e.id, player, type:e.type, amount:e.amount, cat:e.cat, note:e.note, ts:new Date(e.ts).toISOString() });
+  if(error){ e._local = true; lsSet("gtabt.entries", entries); toast("Buchung vorerst nur lokal gespeichert – wird beim nächsten Verbinden hochgeladen."); }
+}
+async function removeEntry(id){
+  entries = entries.filter(x => x.id !== id);
+  lsSet("gtabt.entries", entries); renderKasse();
+  if(sb){ const { error } = await sb.from("gta_entries").delete().eq("id", id); if(error) toast("Löschen hat online nicht geklappt."); }
+}
+let channel = null;
+async function connect(){
+  updateSync();
+  if(!sb) return;
+  try{
+    const [st, en] = await Promise.all([
+      sb.from("gta_state").select("data").eq("player", player).maybeSingle(),
+      sb.from("gta_entries").select("*").eq("player", player).order("ts", {ascending:false}).limit(2000)
+    ]);
+    if(st.error || en.error) throw st.error || en.error;
+    if(st.data && st.data.data && Array.isArray(st.data.data.biz)){ state = st.data.data; settle(); }
+    else { state = lsGet("gtabt.state") || defaultState(); saveState(); }
+    lsSet("gtabt.state", state);
+    // lokal erfasste Buchungen ohne Verbindung nachreichen
+    const remote = en.data.map(rowToEntry), ids = new Set(remote.map(x=>x.id));
+    const pending = entries.filter(x => x._local && !ids.has(x.id));
+    entries = remote.concat(pending).sort((a,b)=>b.ts-a.ts);
+    for(const p of pending){
+      const { error } = await sb.from("gta_entries").insert({ id:p.id, player, type:p.type, amount:p.amount, cat:p.cat, note:p.note, ts:new Date(p.ts).toISOString() });
+      if(!error) delete p._local;
+    }
+    lsSet("gtabt.entries", entries);
+    syncMode = "cloud"; updateSync(); syncHeader(); renderTimers(true); renderKasse();
+    if(channel) sb.removeChannel(channel);
+    channel = sb.channel("gta-" + player)
+      .on("postgres_changes", {event:"*", schema:"public", table:"gta_state", filter:"player=eq."+player}, p => {
+        if(Date.now() - lastLocalWrite < 3000 || !p.new || !p.new.data) return;
+        state = p.new.data; lsSet("gtabt.state", state); syncHeader(); renderTimers(true);
+      })
+      .on("postgres_changes", {event:"*", schema:"public", table:"gta_entries", filter:"player=eq."+player}, p => {
+        if(p.eventType === "INSERT" && !entries.some(x=>x.id===p.new.id)) entries = [rowToEntry(p.new), ...entries].sort((a,b)=>b.ts-a.ts);
+        if(p.eventType === "DELETE" && p.old && p.old.id) entries = entries.filter(x=>x.id!==p.old.id);
+        lsSet("gtabt.entries", entries); renderKasse();
+      })
+      .subscribe();
+  }catch(e){ console.warn(e); syncMode = "error"; updateSync(); }
+}
+function updateSync(){
+  const t = syncMode === "cloud" ? "Online gespeichert als „" + player + "“ – auf jedem Gerät gleich."
+    : syncMode === "error" ? "Keine Verbindung zur Datenbank – Änderungen bleiben vorerst in diesem Browser."
+    : "Verbinde …";
+  $("#syncNote").textContent = t;
+  const pb = $("#playerBtn"); if(pb) pb.textContent = "Spieler: " + player;
+}
+function changePlayer(){
+  const host = $("#playerHost");
+  host.innerHTML = `<form class="durform" id="playerForm"><input id="playerInput" value="${esc(player)}" maxlength="40" aria-label="Spielername" style="width:150px"><button class="btn small primary" type="submit">Wechseln</button><button class="btn small ghost" type="button" id="playerCancel">Abbrechen</button></form>`;
+  $("#playerInput").focus(); $("#playerInput").select();
+  $("#playerCancel").onclick = () => host.innerHTML = "";
+  $("#playerForm").onsubmit = ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    const n = $("#playerInput").value.trim().slice(0,40); host.innerHTML = "";
+    if(!n || n === player) return;
+    player = n; lsSet("gtabt.player", player); entries = []; renderKasse(); connect();
+  };
+}
+
+/* ---------- Timer-Logik ---------- */
+function shouldRun(t){ return t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t) < t.min*60000; }
+function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? now - t.resumedAt : 0); }
+function settle(now = Date.now()){
+  // Laufzeiten an den Schaltzustand anpassen (nach Online-/Pause-Wechsel)
+  state.biz.forEach(b => b.timers.forEach(t => {
+    const run = t.armed && !t.paused && (!t.onlineOnly || state.online);
+    if(t.resumedAt && !run){ t.elapsed += now - t.resumedAt; t.resumedAt = null; }
+    else if(!t.resumedAt && run){ t.resumedAt = now; }
+  }));
+}
+function findTimer(id){ for(const b of state.biz){ const t = b.timers.find(x => x.id === id); if(t) return [b,t]; } return [null,null]; }
+function startTimer(t){ t.armed = true; t.paused = false; t.elapsed = 0; t.notified = false; t.resumedAt = null; settle(); }
+
+/* ---------- Ton ---------- */
+let audioCtx = null;
+function beep(){
+  if(!state.sound) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    [0, .22, .44].forEach((dt,i) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "triangle"; o.frequency.value = i===2 ? 988 : 784;
+      g.gain.setValueAtTime(.0001, now+dt); g.gain.exponentialRampToValueAtTime(.25, now+dt+.02); g.gain.exponentialRampToValueAtTime(.0001, now+dt+.2);
+      o.connect(g).connect(audioCtx.destination); o.start(now+dt); o.stop(now+dt+.22);
+    });
+  }catch(e){}
+}
+document.addEventListener("pointerdown", () => { try{ if(audioCtx && audioCtx.state === "suspended") audioCtx.resume(); else if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }, {once:true});
+
+/* ---------- Toast ---------- */
+let toastTimer;
+function toast(msg, action){
+  const host = $("#toastHost");
+  host.innerHTML = `<div class="toast" role="status"><span>${esc(msg)}</span>${action?`<button type="button" id="toastAct">${esc(action.label)}</button>`:""}<button type="button" class="close" id="toastClose" aria-label="Schließen">✕</button></div>`;
+  if(action) $("#toastAct").onclick = () => { host.innerHTML=""; action.run(); };
+  $("#toastClose").onclick = () => host.innerHTML = "";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => host.innerHTML = "", action ? 9000 : 4000);
+}
+
+/* ---------- Render: Kopf ---------- */
+function syncHeader(){
+  $("#onlineBtn").setAttribute("aria-checked", String(state.online));
+  $("#onlineLbl").innerHTML = state.online ? "In einer Session<small>Produktion läuft</small>" : "Offline<small>Produktion pausiert</small>";
+  $("#soundBtn").textContent = state.sound ? "Ton an" : "Ton aus";
+  $("#soundBtn").setAttribute("aria-pressed", String(state.sound));
+}
+
+/* ---------- Render: Timer ---------- */
+function timerStatus(t, now){
+  const total = t.min*60000, el = elapsedOf(t, now), left = total - el;
+  if(!t.armed) return {cls:"st-idle", txt:"Bereit", left: total, pct:0, done:false};
+  if(left <= 0) return {cls:"st-done", txt: t.kind==="supply" ? "Leer" : t.kind==="cooldown" ? "Verfügbar" : "Voll", left:0, pct:100, done:true};
+  const pct = Math.min(100, el/total*100);
+  if(t.paused) return {cls:"st-hold", txt:"Pausiert", left, pct, done:false};
+  if(t.onlineOnly && !state.online) return {cls:"st-hold", txt:"Offline", left, pct, done:false};
+  return {cls:"st-run", txt:"Läuft", left, pct, done:false};
+}
+function startLabel(t){ return t.kind==="supply" ? "Nachschub gekauft" : t.kind==="cooldown" ? "Gerade gemacht" : t.kind==="stock" ? "Gerade geleert" : "Starten"; }
+
+function renderTimers(full){
+  const grid = $("#bizGrid");
+  if(full || grid.dataset.sig !== sig()){
+    grid.dataset.sig = sig();
+    if(!state.biz.length){
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Noch keine Geschäfte. Füge mit „+ Geschäft“ deinen Bunker, Nachtclub oder Cooldowns hinzu.</div>`;
+    } else grid.innerHTML = state.biz.map(b => `
+      <article class="biz" data-biz="${b.id}">
+        <div class="biz-head"><div><h3>${esc(b.name)}</h3>${b.tag?`<div class="tag">${esc(b.tag)}</div>`:""}</div>
+          <button class="btn small ghost danger" data-act="delbiz" data-id="${b.id}" aria-label="${esc(b.name)} entfernen">Entfernen</button></div>
+        ${b.timers.map(t => `
+        <div class="timer" data-timer="${t.id}">
+          <div class="trow"><span class="tname">${esc(t.label)}</span><span class="state" data-k="state"></span></div>
+          <div class="clock" data-k="clock">--:--</div>
+          <div class="bar" data-k="barw"><i data-k="bar" style="width:0%"></i></div>
+          <div class="meta">
+            ${editDur===t.id ? `<form class="durform" data-act="durform" data-id="${t.id}"><input id="dur-${t.id}" value="${Math.floor(t.min/60)}:${String(t.min%60).padStart(2,"0")}" aria-label="Dauer (Std:Min)" inputmode="numeric"><button class="btn small primary" type="submit">OK</button><span>Std:Min</span></form>`
+              : `<span>Dauer <button type="button" class="dur" data-act="editdur" data-id="${t.id}">${fmtDur(t.min)}</button></span>`}
+            <span>${t.onlineOnly ? "nur in Session" : "läuft immer"}</span>
+          </div>
+          <div class="tact">
+            <button class="btn small primary" data-act="start" data-id="${t.id}">${startLabel(t)}</button>
+            <button class="btn small" data-act="pause" data-id="${t.id}" data-k="pausebtn">Pause</button>
+            <button class="btn small ghost" data-act="reset" data-id="${t.id}">Zurücksetzen</button>
+          </div>
+        </div>`).join("")}
+        <div class="biz-foot">
+          <button class="btn small" data-act="sell" data-id="${b.id}">+ Verkauf eintragen</button>
+          <button class="btn small" data-act="spend" data-id="${b.id}">− Kosten eintragen</button>
+        </div>
+      </article>`).join("");
+  }
+  tick();
+}
+function sig(){ return state.biz.map(b => b.id + ":" + b.timers.map(t => t.id+t.min+t.label).join(",")).join("|") + "|" + editDur; }
+
+function tick(){
+  const now = Date.now();
+  let notify = [];
+  state.biz.forEach(b => b.timers.forEach(t => {
+    const el = document.querySelector(`[data-timer="${t.id}"]`);
+    const s = timerStatus(t, now);
+    if(s.done && t.armed && !t.notified){ t.notified = true; notify.push(b.name + ": " + t.label + " – " + s.txt); }
+    if(!el) return;
+    const st = el.querySelector('[data-k="state"]'); st.className = "state " + s.cls; st.textContent = s.txt;
+    const ck = el.querySelector('[data-k="clock"]'); ck.textContent = fmtClock(s.left); ck.classList.toggle("done", s.done);
+    el.querySelector('[data-k="bar"]').style.width = s.pct + "%";
+    el.querySelector('[data-k="barw"]').classList.toggle("done", s.done);
+    const pb = el.querySelector('[data-k="pausebtn"]');
+    pb.textContent = t.paused ? "Fortsetzen" : "Pause"; pb.disabled = !t.armed || s.done;
+  }));
+  if(notify.length){
+    // abgelaufene Timer anhalten und einmalig melden
+    state.biz.forEach(b => b.timers.forEach(t => { if(t.notified && t.resumedAt && elapsedOf(t,now) >= t.min*60000){ t.elapsed = t.min*60000; t.resumedAt = null; } }));
+    saveState(); beep(); toast(notify.join(" · "));
+    const base = "GTA Business Tracker"; let n = 0;
+    const iv = setInterval(() => { document.title = (n++%2) ? base : "⏰ " + notify[0]; if(n>12){ clearInterval(iv); document.title = base; } }, 900);
+  }
+}
+
+function renderAddPanel(){
+  const p = $("#addPanel");
+  p.hidden = !addOpen;
+  if(!addOpen) return;
+  p.innerHTML = `
+    <div class="subh">Vorlage wählen</div>
+    <div class="chips">${PRESETS.map(pr => `<button type="button" class="chip" data-act="addpreset" data-key="${pr.key}">${esc(pr.name)}</button>`).join("")}</div>
+    <div class="subh">Oder eigener Timer</div>
+    <form class="durform" data-act="addcustom">
+      <input id="cName" placeholder="Name, z. B. Salvage Yard" style="width:200px" aria-label="Name">
+      <input id="cDur" placeholder="2:00" aria-label="Dauer Std:Min" inputmode="numeric">
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="cOnline" checked> nur in Session</label>
+      <button class="btn small primary" type="submit">Hinzufügen</button>
+    </form>`;
+}
+
+/* ---------- Render: Kasse ---------- */
+function periodStart(){
+  const d = new Date();
+  if(period === "all") return 0;
+  if(period === "30"){ d.setHours(0,0,0,0); d.setDate(d.getDate()-29); return d.getTime(); }
+  d.setHours(0,0,0,0);
+  const back = (d.getDay() - 4 + 7) % 7; // Donnerstag = Wochenstart in GTA Online
+  d.setDate(d.getDate() - back); return d.getTime();
+}
+function renderKasse(){
+  const from = periodStart();
+  const list = entries.filter(e => e.ts >= from);
+  const inSum = list.filter(e=>e.type==="in").reduce((a,e)=>a+e.amount,0);
+  const outSum = list.filter(e=>e.type==="out").reduce((a,e)=>a+e.amount,0);
+  $("#kIn").textContent = money(inSum);
+  $("#kOut").textContent = money(-outSum).replace("−","− ");
+  const net = inSum - outSum, kn = $("#kNet");
+  kn.textContent = (net>0?"+":"") + money(net); kn.className = "v num " + (net>0?"pos":net<0?"neg":"");
+
+  // 14-Tage-Diagramm
+  const days = []; const today = new Date(); today.setHours(0,0,0,0);
+  for(let i=13;i>=0;i--){ const d = new Date(today); d.setDate(d.getDate()-i); days.push({t:d.getTime(), in:0, out:0, label:d.getDate()+"."}); }
+  entries.forEach(e => { const d = new Date(e.ts); d.setHours(0,0,0,0); const slot = days.find(x=>x.t===d.getTime()); if(slot) slot[e.type] += e.amount; });
+  const max = Math.max(1, ...days.map(d=>Math.max(d.in,d.out)));
+  $("#chart").innerHTML = `<div class="axis"></div>` + days.map(d => `
+    <div class="col" title="${new Date(d.t).toLocaleDateString("de-DE")}: +${money(d.in)} / −${money(d.out)}">
+      <div class="up"><i style="height:${d.in/max*100}%"></i></div>
+      <div class="down"><i style="height:${d.out/max*100}%"></i></div>
+    </div>`).join("");
+  $("#chartX").innerHTML = days.map((d,i) => `<span>${(i%2===1||i===13)?d.label:""}</span>`).join("");
+
+  // Kategorien
+  const catBlock = (type, title) => {
+    const sums = {}; list.filter(e=>e.type===type).forEach(e => sums[e.cat] = (sums[e.cat]||0) + e.amount);
+    const rows = Object.entries(sums).sort((a,b)=>b[1]-a[1]); const tot = rows.reduce((a,r)=>a+r[1],0);
+    if(!rows.length) return `<div class="subh">${title}</div><p class="hint">Noch nichts in diesem Zeitraum.</p>`;
+    return `<div class="subh">${title}</div>` + rows.map((r,i) => `
+      <div class="cat"><span>${esc(r[0])}</span><span class="amt">${money(r[1])}</span>
+      <div class="cb"><i style="width:${r[1]/tot*100}%;background:${type==="in"?"var(--good)":"var(--bad)"};opacity:${1-i*0.12}"></i></div></div>`).join("");
+  };
+  $("#cats").innerHTML = catBlock("in","Einnahmen") + catBlock("out","Ausgaben");
+
+  // Liste
+  if(!list.length){
+    $("#list").innerHTML = `<div class="empty">Noch keine Buchungen in diesem Zeitraum. Trag deinen letzten Verkauf mit „+ Einnahme“ ein, oder direkt aus einer Geschäftskarte im Timer.</div>`;
+  } else {
+    let html = "", lastDay = "";
+    list.slice(0,300).forEach(e => {
+      const d = new Date(e.ts), dk = d.toDateString();
+      if(dk !== lastDay){ lastDay = dk; html += `<div class="day">${d.toLocaleDateString("de-DE",{weekday:"long", day:"numeric", month:"long"})}</div>`; }
+      html += `<div class="entry">
+        <span class="dot" style="background:${e.type==="in"?"var(--good)":"var(--bad)"}"></span>
+        <div class="what"><b>${esc(e.cat)}</b><small>${d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}${e.note?" · "+esc(e.note):""}</small></div>
+        <span class="amt" style="color:${e.type==="in"?"var(--good)":"var(--bad)"}">${e.type==="in"?"+":"−"}${money(e.amount)}</span>
+        <button class="x ${armedDelete===e.id?"armed":""}" data-act="delentry" data-id="${e.id}">${armedDelete===e.id?"Löschen?":"✕"}</button>
+      </div>`;
+    });
+    $("#list").innerHTML = html;
+  }
+}
+
+/* ---------- Formular ---------- */
+let formType = "in", lastFocus = null;
+function openForm(type, cat, note){
+  lastFocus = document.activeElement;
+  formType = type; setType(type, cat);
+  $("#fAmount").value = ""; $("#fNote").value = note || ""; $("#fErr").hidden = true;
+  const d = new Date(); d.setSeconds(0,0); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  $("#fDate").value = d.toISOString().slice(0,16);
+  $("#amountPreview").textContent = "Kürzel: k = Tausend, m = Million";
+  $("#scrim").hidden = false; setTimeout(() => $("#fAmount").focus(), 30);
+}
+function closeForm(){ $("#scrim").hidden = true; if(lastFocus && lastFocus.focus) lastFocus.focus(); }
+function setType(type, cat){
+  formType = type;
+  $("#segIn").setAttribute("aria-pressed", String(type==="in"));
+  $("#segOut").setAttribute("aria-pressed", String(type==="out"));
+  $("#formTitle").textContent = type==="in" ? "Einnahme" : "Ausgabe";
+  $("#fCat").innerHTML = CATS[type].map(c => `<option ${c===cat?"selected":""}>${esc(c)}</option>`).join("");
+}
+$("#segIn").onclick = () => setType("in");
+$("#segOut").onclick = () => setType("out");
+$("#fCancel").onclick = closeForm;
+$("#scrim").addEventListener("click", e => { if(e.target.id === "scrim") closeForm(); });
+document.addEventListener("keydown", e => { if(e.key === "Escape" && !$("#scrim").hidden) closeForm(); });
+$("#fAmount").addEventListener("input", () => {
+  const n = parseAmount($("#fAmount").value);
+  $("#amountPreview").textContent = isFinite(n) && n>0 ? "= " + money(n) : "Kürzel: k = Tausend, m = Million";
+});
+$("#entryForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const amount = Math.round(parseAmount($("#fAmount").value));
+  if(!isFinite(amount) || amount <= 0){ const er=$("#fErr"); er.textContent = "Gib einen Betrag über 0 ein, z. B. 450k."; er.hidden = false; return; }
+  const ts = $("#fDate").value ? new Date($("#fDate").value).getTime() : Date.now();
+  addEntry({ id: uid(), type: formType, amount, cat: $("#fCat").value, note: $("#fNote").value.trim().slice(0,120), ts: isFinite(ts)?ts:Date.now() });
+  closeForm(); toast(formType==="in" ? "Einnahme gespeichert" : "Ausgabe gespeichert");
+});
+
+/* ---------- Ereignisse ---------- */
+$("#onlineBtn").onclick = () => { state.online = !state.online; settle(); saveState(); syncHeader(); tick(); };
+$("#soundBtn").onclick = () => { state.sound = !state.sound; saveState(); syncHeader(); if(state.sound) beep(); };
+$("#playerBtn").onclick = changePlayer;
+$("#addBizBtn").onclick =() => { addOpen = !addOpen; renderAddPanel(); };
+$("#addInBtn").onclick = () => openForm("in");
+$("#addOutBtn").onclick = () => openForm("out");
+
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => setView(b.dataset.view));
+function setView(v){
+  view = v;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view===v)));
+  $("#view-timer").hidden = v!=="timer"; $("#view-kasse").hidden = v!=="kasse";
+  $("#view-kasse").style.display = v==="kasse" ? "flex" : "";
+  if(v==="kasse") renderKasse();
+}
+$("#periodChips").addEventListener("click", e => {
+  const b = e.target.closest("[data-p]"); if(!b) return;
+  period = b.dataset.p;
+  document.querySelectorAll("#periodChips .chip").forEach(c => c.setAttribute("aria-pressed", String(c===b)));
+  renderKasse();
+});
+$("#list").addEventListener("click", e => {
+  const b = e.target.closest('[data-act="delentry"]'); if(!b) return;
+  if(armedDelete === b.dataset.id){ armedDelete = null; removeEntry(b.dataset.id); }
+  else { armedDelete = b.dataset.id; renderKasse(); setTimeout(() => { if(armedDelete===b.dataset.id){ armedDelete=null; renderKasse(); } }, 4000); }
+});
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if(!b || b.tagName === "FORM") return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if(act === "start"){
+    const [biz,t] = findTimer(id); startTimer(t); saveState(); renderTimers();
+    if(t.kind === "supply") toast(biz.name + ": Nachschub-Timer läuft.", {label:"Kosten eintragen", run: () => openForm("out","Nachschub",biz.name)});
+    else if(t.kind === "stock") toast(biz.name + ": " + t.label + "-Timer neu gestartet.", {label:"Verkauf eintragen", run: () => openForm("in", t.label.startsWith("Tresor") ? "Tresor (Nachtclub, Agentur …)" : "Business-Verkauf", biz.name)});
+    else if(t.kind === "cooldown") toast(biz.name + ": Cooldown läuft.", {label:"Auszahlung eintragen", run: () => openForm("in", biz.tag==="Heist"?"Heist":"Contract / Mission", biz.name)});
+  }
+  if(act === "pause"){ const [,t] = findTimer(id); t.paused = !t.paused; settle(); saveState(); tick(); }
+  if(act === "reset"){ const [,t] = findTimer(id); Object.assign(t,{armed:false,paused:false,elapsed:0,resumedAt:null,notified:false}); saveState(); tick(); }
+  if(act === "editdur"){ editDur = id; renderTimers(true); const inp = document.getElementById("dur-"+id); if(inp){ inp.focus(); inp.select(); } }
+  if(act === "delbiz"){
+    if(b.dataset.armed){ state.biz = state.biz.filter(x => x.id !== id); saveState(); renderTimers(true); }
+    else { b.dataset.armed = "1"; b.textContent = "Wirklich?"; setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; b.textContent = "Entfernen"; } }, 3500); }
+  }
+  if(act === "sell"){ const biz = state.biz.find(x=>x.id===id); openForm("in", biz.tag==="Heist" ? "Heist" : "Business-Verkauf", biz.name); }
+  if(act === "spend"){ const biz = state.biz.find(x=>x.id===id); openForm("out","Nachschub", biz.name); }
+  if(act === "addpreset"){
+    const pr = PRESETS.find(p => p.key === b.dataset.key); state.biz.push(makeBiz(pr)); saveState(); addOpen = false; renderAddPanel(); renderTimers(true);
+    toast(pr.name + " hinzugefügt");
+  }
+});
+document.addEventListener("submit", e => {
+  const f = e.target; if(!f.dataset || !f.dataset.act) return;
+  e.preventDefault();
+  if(f.dataset.act === "durform"){
+    const [,t] = findTimer(f.dataset.id); const v = parseDur(document.getElementById("dur-"+t.id).value);
+    if(isFinite(v) && v > 0){ t.min = v; if(elapsedOf(t) < v*60000) t.notified = false; settle(); saveState(); }
+    editDur = null; renderTimers(true);
+  }
+  if(f.dataset.act === "addcustom"){
+    const name = $("#cName").value.trim(); const min = parseDur($("#cDur").value || "60");
+    if(!name || !isFinite(min) || min<=0){ toast("Gib einen Namen und eine Dauer an, z. B. 1:30."); return; }
+    state.biz.push(makeBiz({name, tag:"Eigener Timer", timers:[{label:"Timer", min, onlineOnly:$("#cOnline").checked, kind:"custom"}]}));
+    saveState(); addOpen = false; renderAddPanel(); renderTimers(true);
+  }
+});
+
+/* ---------- Start ---------- */
+settle();
+syncHeader(); renderTimers(true); renderKasse(); setView(view); updateSync();
+setInterval(tick, 1000);
+connect();
+})();
+</script>
+
+</body>
+</html>
