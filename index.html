@@ -442,11 +442,12 @@ async function removeEntry(id){
   lsSet("gtabt.entries", entries); renderKasse();
   if(sb){ const { error } = await sb.from("gta_entries").delete().eq("id", id); if(error) toast("Löschen hat online nicht geklappt."); }
 }
-let channel = null;
+let channel = null, presence = null;
 async function connect(){
   updateSync();
   if(!sb) return;
   try{
+    sb.from("gta_presence").select("*").eq("player", player).maybeSingle().then(r => { presence = (r && r.data) || null; syncHeader(); });
     const [st, en] = await Promise.all([
       sb.from("gta_state").select("data").eq("player", player).maybeSingle(),
       sb.from("gta_entries").select("*").eq("player", player).order("ts", {ascending:false}).limit(2000)
@@ -468,9 +469,10 @@ async function connect(){
     if(channel) sb.removeChannel(channel);
     channel = sb.channel("gta-" + player)
       .on("postgres_changes", {event:"*", schema:"public", table:"gta_state", filter:"player=eq."+player}, p => {
-        if(Date.now() - lastLocalWrite < 3000 || !p.new || !p.new.data) return;
+        if(!p.new || !p.new.data) return; if(Date.now() - lastLocalWrite < 3000 && !(p.new.data.autoChangedAt > lastLocalWrite)) return;
         state = p.new.data; lsSet("gtabt.state", state); syncHeader(); renderTimers(true); if(view==="cayo") renderCayo();
       })
+      .on("postgres_changes", {event:"*", schema:"public", table:"gta_presence", filter:"player=eq."+player}, p => { presence = p.new && p.new.player ? p.new : null; syncHeader(); })
       .on("postgres_changes", {event:"*", schema:"public", table:"gta_entries", filter:"player=eq."+player}, p => {
         if(p.eventType === "INSERT" && !entries.some(x=>x.id===p.new.id)) entries = [rowToEntry(p.new), ...entries].sort((a,b)=>b.ts-a.ts);
         if(p.eventType === "DELETE" && p.old && p.old.id) entries = entries.filter(x=>x.id!==p.old.id);
@@ -543,7 +545,14 @@ function toast(msg, action){
 /* ---------- Render: Kopf ---------- */
 function syncHeader(){
   $("#onlineBtn").setAttribute("aria-checked", String(state.online));
-  $("#onlineLbl").innerHTML = state.online ? "In einer Session<small>Produktion läuft</small>" : "Offline<small>Produktion pausiert</small>";
+  const auto = presence && presence.enabled && presence.steam_id;
+  let sub = state.online ? "Produktion läuft" : "Produktion pausiert";
+  if(auto){
+    const age = presence.checked_at ? Math.round((Date.now() - new Date(presence.checked_at).getTime())/60000) : null;
+    sub = presence.last_error ? "Steam: " + presence.last_error
+      : "Automatisch über Steam" + (age === null ? "" : age <= 1 ? " · gerade geprüft" : " · vor " + age + " Min geprüft");
+  }
+  $("#onlineLbl").innerHTML = (state.online ? "In einer Session" : "Offline") + "<small>" + esc(sub) + "</small>";
   $("#soundBtn").textContent = state.sound ? "Ton an" : "Ton aus";
   $("#soundBtn").setAttribute("aria-pressed", String(state.sound));
 }
