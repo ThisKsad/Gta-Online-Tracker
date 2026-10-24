@@ -328,6 +328,7 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
     </div>
     <div class="row2">
       <div class="field"><label for="fCat">Kategorie</label><select id="fCat"></select></div>
+      <div class="field" id="fSrcWrap" hidden style="grid-column:1/-1"><label for="fSrc" id="fSrcLbl">Business</label><select id="fSrc"></select></div>
       <div class="field"><label for="fDate">Zeitpunkt</label><input id="fDate" type="datetime-local"></div>
     </div>
     <div class="field"><label for="fNote">Notiz</label><input id="fNote" autocomplete="off" placeholder="z. B. Bunker, Verkauf in Blaine County"></div>
@@ -362,6 +363,12 @@ const CATS = {
   in: ["Business-Verkauf","Heist","Contract / Mission","Tresor (Nachtclub, Agentur …)","Fahrzeugverkauf","Sonstiges"],
   out:["Nachschub","Fahrzeug","Immobilie / Geschäft","Upgrades & Tuning","Heist-Vorbereitung","Waffen & Munition","Sonstiges"]
 };
+const BUSINESSES = ["Bunker","Nachtclub","Acid Lab","Kokain-Labor","Meth-Labor","Falschgeld-Druckerei","Gras-Farm","Ausweis-Fälscherei","Agentur","Autowerkstatt","Schrottplatz (Salvage Yard)","Hangar","Fahrzeuglager","Spezialfracht-Lager","Spielhalle (Arcade)","Kautionsbüro","Autowaschanlage","Sonstiges"];
+const HEISTS = ["Cayo Perico","Diamond Casino","Doomsday-Heist","Pacific Standard","Series A","Humane Labs","Prison Break","Fleeca","Cluckin' Bell Farm Raid","Agentur: The Contract","Autowerkstatt-Auftrag","Schrottplatz-Raub","Oscar Guzman Flies Again","Knoway Out","Sonstiges"];
+const VAULTS = ["Nachtclub","Agentur","Spielhalle (Arcade)","Autowaschanlage","Sonstiges"];
+const SOURCE_FOR = {"Business-Verkauf":["Business",BUSINESSES], "Heist":["Heist",HEISTS], "Tresor (Nachtclub, Agentur …)":["Tresor",VAULTS], "Nachschub":["Business",BUSINESSES], "Heist-Vorbereitung":["Heist",HEISTS]};
+// Namen aus den Timer-Karten auf die Liste abbilden
+const SRC_ALIAS = {"Kokain":"Kokain-Labor","Meth":"Meth-Labor","Falschgeld":"Falschgeld-Druckerei","Gras":"Gras-Farm","Ausweise":"Ausweis-Fälscherei"};
 const CAT_COLORS = ["var(--accent)","var(--good)","var(--warn)","var(--muted)","var(--bad)","var(--fg)","var(--line)"];
 
 /* ---------- Helfer ---------- */
@@ -416,7 +423,7 @@ const SB_URL = "https://dwsieddjvldzurosjdpp.supabase.co";
 const SB_KEY = "sb_publishable_SREC_XokfKppXeP7rTgnMQ_-2ZyEXMp";
 let sb = null, player = lsGet("gtabt.player") || "Lukas", saveTimer = null, saving = Promise.resolve(), syncMode = "local", lastLocalWrite = 0;
 try{ if(window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){ console.warn(e); }
-const rowToEntry = r => ({ id:r.id, type:r.type, amount:Number(r.amount), cat:r.cat, note:r.note||"", ts:new Date(r.ts).getTime() });
+const rowToEntry = r => ({ id:r.id, type:r.type, amount:Number(r.amount), cat:r.cat, source:r.source||"", note:r.note||"", ts:new Date(r.ts).getTime() });
 
 function saveState(){
   lsSet("gtabt.state", state);
@@ -434,7 +441,7 @@ async function addEntry(e){
   entries = [e, ...entries.filter(x => x.id !== e.id)].sort((a,b)=>b.ts-a.ts);
   lsSet("gtabt.entries", entries); renderKasse();
   if(!sb) return;
-  const { error } = await sb.from("gta_entries").insert({ id:e.id, player, type:e.type, amount:e.amount, cat:e.cat, note:e.note, ts:new Date(e.ts).toISOString() });
+  const { error } = await sb.from("gta_entries").insert({ id:e.id, player, type:e.type, amount:e.amount, cat:e.cat, source:e.source||"", note:e.note, ts:new Date(e.ts).toISOString() });
   if(error){ e._local = true; lsSet("gtabt.entries", entries); toast("Buchung vorerst nur lokal gespeichert – wird beim nächsten Verbinden hochgeladen."); }
 }
 async function removeEntry(id){
@@ -461,7 +468,7 @@ async function connect(){
     const pending = entries.filter(x => x._local && !ids.has(x.id));
     entries = remote.concat(pending).sort((a,b)=>b.ts-a.ts);
     for(const p of pending){
-      const { error } = await sb.from("gta_entries").insert({ id:p.id, player, type:p.type, amount:p.amount, cat:p.cat, note:p.note, ts:new Date(p.ts).toISOString() });
+      const { error } = await sb.from("gta_entries").insert({ id:p.id, player, type:p.type, amount:p.amount, cat:p.cat, source:p.source||"", note:p.note, ts:new Date(p.ts).toISOString() });
       if(!error) delete p._local;
     }
     lsSet("gtabt.entries", entries);
@@ -689,7 +696,16 @@ function renderKasse(){
       <div class="cat"><span>${esc(r[0])}</span><span class="amt">${money(r[1])}</span>
       <div class="cb"><i style="width:${r[1]/tot*100}%;background:${type==="in"?"var(--good)":"var(--bad)"};opacity:${1-i*0.12}"></i></div></div>`).join("");
   };
-  $("#cats").innerHTML = catBlock("in","Einnahmen") + catBlock("out","Ausgaben");
+  const srcBlock = () => {
+    const sums = {}; list.filter(e=>e.source).forEach(e => { const k = e.source; sums[k] = sums[k] || {in:0,out:0}; sums[k][e.type] += e.amount; });
+    const rows = Object.entries(sums).map(([k,v]) => [k, v.in - v.out, v]).sort((a,b)=>b[1]-a[1]);
+    if(!rows.length) return "";
+    const max = Math.max(1, ...rows.map(r=>Math.abs(r[1])));
+    return `<div class="subh">Nach Business / Heist (Gewinn)</div>` + rows.slice(0,8).map(r => `
+      <div class="cat"><span>${esc(r[0])}</span><span class="amt" style="color:${r[1]>=0?"var(--good)":"var(--bad)"}">${r[1]>0?"+":""}${money(r[1])}</span>
+      <div class="cb"><i style="width:${Math.abs(r[1])/max*100}%;background:${r[1]>=0?"var(--good)":"var(--bad)"}"></i></div></div>`).join("");
+  };
+  $("#cats").innerHTML = srcBlock() + catBlock("in","Einnahmen") + catBlock("out","Ausgaben");
 
   // Liste
   if(!list.length){
@@ -701,7 +717,7 @@ function renderKasse(){
       if(dk !== lastDay){ lastDay = dk; html += `<div class="day">${d.toLocaleDateString("de-DE",{weekday:"long", day:"numeric", month:"long"})}</div>`; }
       html += `<div class="entry">
         <span class="dot" style="background:${e.type==="in"?"var(--good)":"var(--bad)"}"></span>
-        <div class="what"><b>${esc(e.cat)}</b><small>${d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}${e.note?" · "+esc(e.note):""}</small></div>
+        <div class="what"><b>${esc(e.cat)}${e.source?` · ${esc(e.source)}`:""}</b><small>${d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}${e.note?" · "+esc(e.note):""}</small></div>
         <span class="amt" style="color:${e.type==="in"?"var(--good)":"var(--bad)"}">${e.type==="in"?"+":"−"}${money(e.amount)}</span>
         <button class="x ${armedDelete===e.id?"armed":""}" data-act="delentry" data-id="${e.id}">${armedDelete===e.id?"Löschen?":"✕"}</button>
       </div>`;
@@ -712,8 +728,10 @@ function renderKasse(){
 
 /* ---------- Formular ---------- */
 let formType = "in", lastFocus = null;
-function openForm(type, cat, note){
+let formSrc = "";
+function openForm(type, cat, note, source){
   lastFocus = document.activeElement;
+  formSrc = SRC_ALIAS[source] || source || "";
   formType = type; setType(type, cat);
   $("#fAmount").value = ""; $("#fNote").value = note || ""; $("#fErr").hidden = true;
   const d = new Date(); d.setSeconds(0,0); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -728,7 +746,18 @@ function setType(type, cat){
   $("#segOut").setAttribute("aria-pressed", String(type==="out"));
   $("#formTitle").textContent = type==="in" ? "Einnahme" : "Ausgabe";
   $("#fCat").innerHTML = CATS[type].map(c => `<option ${c===cat?"selected":""}>${esc(c)}</option>`).join("");
+  updateSrc();
 }
+function updateSrc(){
+  const conf = SOURCE_FOR[$("#fCat").value];
+  $("#fSrcWrap").hidden = !conf;
+  if(!conf){ $("#fSrc").innerHTML = ""; return; }
+  $("#fSrcLbl").textContent = conf[0];
+  const list = conf[1].includes(formSrc) || !formSrc ? conf[1] : [formSrc, ...conf[1]];
+  $("#fSrc").innerHTML = `<option value="">– auswählen –</option>` + list.map(x => `<option ${x===formSrc?"selected":""}>${esc(x)}</option>`).join("");
+}
+$("#fCat").addEventListener("change", updateSrc);
+$("#fSrc").addEventListener("change", e => formSrc = e.target.value);
 $("#segIn").onclick = () => setType("in");
 $("#segOut").onclick = () => setType("out");
 $("#fCancel").onclick = closeForm;
@@ -743,7 +772,7 @@ $("#entryForm").addEventListener("submit", e => {
   const amount = Math.round(parseAmount($("#fAmount").value));
   if(!isFinite(amount) || amount <= 0){ const er=$("#fErr"); er.textContent = "Gib einen Betrag über 0 ein, z. B. 450k."; er.hidden = false; return; }
   const ts = $("#fDate").value ? new Date($("#fDate").value).getTime() : Date.now();
-  addEntry({ id: uid(), type: formType, amount, cat: $("#fCat").value, note: $("#fNote").value.trim().slice(0,120), ts: isFinite(ts)?ts:Date.now() });
+  addEntry({ id: uid(), type: formType, amount, cat: $("#fCat").value, source: $("#fSrcWrap").hidden ? "" : $("#fSrc").value, note: $("#fNote").value.trim().slice(0,120), ts: isFinite(ts)?ts:Date.now() });
   closeForm(); toast(formType==="in" ? "Einnahme gespeichert" : "Ausgabe gespeichert");
 });
 
@@ -942,9 +971,9 @@ document.addEventListener("click", e => {
   const act = b.dataset.act, id = b.dataset.id;
   if(act === "start"){
     const [biz,t] = findTimer(id); startTimer(t); saveState(); renderTimers();
-    if(t.kind === "supply") toast(biz.name + ": Nachschub-Timer läuft.", {label:"Kosten eintragen", run: () => openForm("out","Nachschub",biz.name)});
-    else if(t.kind === "stock") toast(biz.name + ": " + t.label + "-Timer neu gestartet.", {label:"Verkauf eintragen", run: () => openForm("in", t.label.startsWith("Tresor") ? "Tresor (Nachtclub, Agentur …)" : "Business-Verkauf", biz.name)});
-    else if(t.kind === "cooldown") toast(biz.name + ": Cooldown läuft.", {label:"Auszahlung eintragen", run: () => openForm("in", biz.tag==="Heist"?"Heist":"Contract / Mission", biz.name)});
+    if(t.kind === "supply") toast(biz.name + ": Nachschub-Timer läuft.", {label:"Kosten eintragen", run: () => openForm("out","Nachschub","",biz.name)});
+    else if(t.kind === "stock") toast(biz.name + ": " + t.label + "-Timer neu gestartet.", {label:"Verkauf eintragen", run: () => openForm("in", t.label.startsWith("Tresor") ? "Tresor (Nachtclub, Agentur …)" : "Business-Verkauf", "", biz.name)});
+    else if(t.kind === "cooldown") toast(biz.name + ": Cooldown läuft.", {label:"Auszahlung eintragen", run: () => openForm("in", biz.tag==="Heist"?"Heist":"Contract / Mission", biz.tag==="Heist"?"":biz.name, biz.tag==="Heist"?biz.name:"")});
   }
   if(act === "heist"){ cayoSel = Number(b.dataset.i); selRoom = null; renamingHeist = false; resetArmed = false; renderCayo(); }
   if(act === "cayomove"){ moving = !moving; renderCayo(); }
@@ -973,7 +1002,7 @@ document.addEventListener("click", e => {
     const h = ensureCayo();
     let cd = null; state.biz.forEach(bz => { if(bz.name === "Cayo Perico") bz.timers.forEach(t => { if(t.kind === "cooldown" && !cd) cd = t; }); });
     if(cd){ startTimer(cd); saveState(); renderTimers(); }
-    openForm("in", "Heist", "Cayo Perico (" + h.name + ")" + (h.primary ? " – " + h.primary : ""));
+    openForm("in", "Heist", gen(h.name) + " Durchgang" + (h.primary ? " – " + h.primary : ""), "Cayo Perico");
     if(!cd) setTimeout(() => toast("Tipp: Füge im Timer „Cayo Perico“ hinzu, dann startet der Cooldown hier automatisch."), 400);
   }
   if(act === "pause"){ const [,t] = findTimer(id); t.paused = !t.paused; settle(); saveState(); tick(); }
@@ -983,8 +1012,8 @@ document.addEventListener("click", e => {
     if(b.dataset.armed){ state.biz = state.biz.filter(x => x.id !== id); saveState(); renderTimers(true); }
     else { b.dataset.armed = "1"; b.textContent = "Wirklich?"; setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; b.textContent = "Entfernen"; } }, 3500); }
   }
-  if(act === "sell"){ const biz = state.biz.find(x=>x.id===id); openForm("in", biz.tag==="Heist" ? "Heist" : "Business-Verkauf", biz.name); }
-  if(act === "spend"){ const biz = state.biz.find(x=>x.id===id); openForm("out","Nachschub", biz.name); }
+  if(act === "sell"){ const biz = state.biz.find(x=>x.id===id); openForm("in", biz.tag==="Heist" ? "Heist" : "Business-Verkauf", "", biz.name); }
+  if(act === "spend"){ const biz = state.biz.find(x=>x.id===id); openForm("out","Nachschub", "", biz.name); }
   if(act === "addpreset"){
     const pr = PRESETS.find(p => p.key === b.dataset.key); state.biz.push(makeBiz(pr)); saveState(); addOpen = false; renderAddPanel(); renderTimers(true);
     toast(pr.name + " hinzugefügt");
