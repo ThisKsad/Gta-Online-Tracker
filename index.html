@@ -266,7 +266,7 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 
   <section id="view-timer" style="display:flex;flex-direction:column;gap:14px">
     <div class="toolbar">
-      <p class="hint">In GTA Online laufen Nachschub und Produktion nur, solange du in einer Session bist. Schalte oben auf „Offline“, wenn du aufhörst. Die Zeiten sind Richtwerte für voll ausgebaute Geschäfte (alle Upgrades). „Lager voll“ setzt voraus, dass der Nachschub zwischendurch aufgefüllt wird; tippe auf eine Dauer, um sie anzupassen.</p>
+      <p class="hint">In GTA Online laufen Nachschub und Produktion nur, solange du in einer Session bist. Schalte oben auf „Offline“, wenn du aufhörst. Die Zeiten sind Richtwerte für voll ausgebaute Geschäfte (alle Upgrades): „Nachschub“ zeigt, wann ein voller Nachschub verbraucht ist; tippe auf eine Dauer, um sie anzupassen.</p>
       <button class="btn primary" id="addBizBtn">+ Geschäft</button>
     </div>
     <div id="addPanel" class="addpanel" hidden></div>
@@ -364,12 +364,12 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 const PRESETS = [
   {key:"bunker", name:"Bunker", tag:"Waffenhandel", timers:[{label:"Nachschub", min:140, onlineOnly:true, kind:"supply"},{label:"Lager voll", min:700, onlineOnly:true, kind:"stock"}]},
   {key:"nightclub", name:"Nachtclub", tag:"Lagerhaus", timers:[{label:"Lager voll", min:1200, onlineOnly:true, kind:"stock"},{label:"Tresor", min:48, cycles:5, onlineOnly:true, kind:"stock"}]},
-  {key:"acid", name:"Acid Lab", tag:"Brickade", timers:[{label:"Nachschub", min:75, onlineOnly:true, kind:"supply"},{label:"Lager voll", min:240, onlineOnly:true, kind:"stock"}]},
-  {key:"coke", name:"Kokain", tag:"MC", timers:[{label:"Lager voll", min:300, onlineOnly:true, kind:"stock"}]},
-  {key:"meth", name:"Meth", tag:"MC", timers:[{label:"Lager voll", min:360, onlineOnly:true, kind:"stock"}]},
-  {key:"cash", name:"Falschgeld", tag:"MC", timers:[{label:"Lager voll", min:320, onlineOnly:true, kind:"stock"}]},
-  {key:"weed", name:"Gras", tag:"MC", timers:[{label:"Lager voll", min:320, onlineOnly:true, kind:"stock"}]},
-  {key:"docs", name:"Ausweise", tag:"MC", timers:[{label:"Lager voll", min:180, onlineOnly:true, kind:"stock"}]},
+  {key:"acid", name:"Acid Lab", tag:"Brickade", timers:[{label:"Nachschub", min:75, onlineOnly:true, kind:"supply"}]},
+  {key:"coke", name:"Kokain", tag:"MC", timers:[{label:"Nachschub", min:100, onlineOnly:true, kind:"supply"}]},
+  {key:"meth", name:"Meth", tag:"MC", timers:[{label:"Nachschub", min:180, onlineOnly:true, kind:"supply"}]},
+  {key:"cash", name:"Falschgeld", tag:"MC", timers:[{label:"Nachschub", min:160, onlineOnly:true, kind:"supply"}]},
+  {key:"weed", name:"Gras", tag:"MC", timers:[{label:"Nachschub", min:160, onlineOnly:true, kind:"supply"}]},
+  {key:"docs", name:"Ausweise", tag:"MC", timers:[{label:"Nachschub", min:90, onlineOnly:true, kind:"supply"}]},
   {key:"agency", name:"Agentur", tag:"Tresor", timers:[{label:"Tresor voll", min:960, onlineOnly:true, kind:"stock"}]},
   {key:"cayo", name:"Cayo Perico", tag:"Heist", timers:[{label:"Cooldown", min:144, onlineOnly:false, kind:"cooldown"}]},
   {key:"ceo", name:"CEO-Arbeit", tag:"Cooldown", timers:[{label:"Cooldown", min:5, onlineOnly:false, kind:"cooldown"}]}
