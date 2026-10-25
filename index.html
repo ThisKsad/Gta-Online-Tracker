@@ -421,7 +421,9 @@ let armedDelete = null;  // entry id armed for delete
 /* ---------- Speicher (Supabase, Browser als Zwischenspeicher) ---------- */
 const SB_URL = "https://dwsieddjvldzurosjdpp.supabase.co";
 const SB_KEY = "sb_publishable_SREC_XokfKppXeP7rTgnMQ_-2ZyEXMp";
-let sb = null, player = lsGet("gtabt.player") || "Lukas", saveTimer = null, saving = Promise.resolve(), syncMode = "local", lastLocalWrite = 0;
+let urlPlayer = null;
+try{ const q = new URLSearchParams(location.search).get("spieler"); if(q && q.trim()) { urlPlayer = q.trim().slice(0,40); lsSet("gtabt.player", urlPlayer); } }catch(e){}
+let sb = null, player = urlPlayer || lsGet("gtabt.player") || "Lukas", saveTimer = null, saving = Promise.resolve(), syncMode = "local", lastLocalWrite = 0;
 try{ if(window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY); }catch(e){ console.warn(e); }
 const rowToEntry = r => ({ id:r.id, type:r.type, amount:Number(r.amount), cat:r.cat, source:r.source||"", note:r.note||"", ts:new Date(r.ts).getTime() });
 
