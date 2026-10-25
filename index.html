@@ -265,9 +265,42 @@ nav.tabs button{white-space:nowrap}
 .vrow .vp{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;text-align:right;white-space:nowrap}
 .vrow .vt{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--good);text-align:right;white-space:nowrap;min-width:110px}
 .vrow.rem{opacity:.55}
+.vrow{cursor:pointer;grid-template-columns:96px minmax(0,1fr) auto auto !important}
+.vrow:hover{background:var(--surface2)}
+.vrow .vp{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.vrow .vp s{color:var(--muted);font-weight:400;font-size:12px}
+.vrow .vp .vt{min-width:0}
+.vfav{border:none;background:none;font-size:22px;line-height:1;color:var(--muted);padding:6px;border-radius:8px}
+.vfav[aria-pressed="true"]{color:var(--warn)}
+.vfav.big{font-size:30px}
+.badge.sale{background:var(--good-soft);color:var(--good)}
+.chip-sale{border-color:var(--good);color:var(--good)}
+.vsheet{max-width:620px;position:relative;gap:14px}
+.vdclose{position:absolute;top:10px;right:10px;border:none;background:var(--surface2);border-radius:999px;width:34px;height:34px;font-size:15px;z-index:2}
+.vdimg{margin:-18px -18px 0;border-radius:16px 16px 0 0;overflow:hidden;background:var(--surface2);aspect-ratio:16/9;max-width:calc(100% + 36px)}
+.vdimg img{width:100%;height:100%;object-fit:cover;display:block}
+.vdhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.vdhead h2{margin:0;font-family:var(--display);font-weight:800;font-size:30px;text-transform:uppercase;line-height:1}
+.vdhead p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.vdprices{display:flex;flex-direction:column;gap:8px}
+.vdoffer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.vdoffer span{font-size:13px;font-weight:600}
+.vdoffer b{font-size:18px;text-align:right}
+.vdoffer b s{color:var(--muted);font-size:13px;font-weight:400}
+.vdoffer small{grid-column:1/-1;color:var(--good);font-size:12px}
+.vstats{display:flex;flex-direction:column;gap:8px}
+.vstat{display:grid;grid-template-columns:120px minmax(0,1fr) 32px;gap:10px;align-items:center;font-size:13px}
+.vbar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden}
+.vbar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.vstat b{text-align:right;font-size:12px}
+.vfacts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}
+.vfacts div{background:var(--surface2);border-radius:8px;padding:8px 10px;min-width:0}
+.vfacts dt{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.vfacts dd{margin:2px 0 0;font-weight:600;font-size:14px}
+.vfacts dd small{color:var(--muted);font-weight:400}
 .vrow .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--surface2);color:var(--muted);margin-left:6px}
 .vmore{padding:10px 14px}
-@media (max-width:560px){.vrow{grid-template-columns:80px minmax(0,1fr) auto}.vrow .vimg{width:80px;grid-row:span 2}.vrow .vt{grid-column:3;min-width:0}.vtools #vMax{flex:1 1 140px}}
+@media (max-width:560px){.vrow{grid-template-columns:72px minmax(0,1fr) auto auto !important;gap:4px 8px}.vrow .vimg{width:72px}.vstat{grid-template-columns:96px minmax(0,1fr) 28px}.vtools #vMax{flex:1 1 140px}}
 @media (max-width:720px){
   .panels{grid-template-columns:minmax(0,1fr)}
   .kpis{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -340,7 +373,7 @@ nav.tabs button{white-space:nowrap}
     </div>
     <div class="chips" id="vSites"></div>
     <div id="vList" class="vlist"><div class="empty">Fahrzeugliste wird geladen …</div></div>
-    <p class="hint">Preise in GTA$ für GTA Online. Rabattpreis = Preis nach Freischaltung (z. B. durch Missionen). Daten und Bilder: gtacars.net, Stand Oktober 2026. Rockstar ändert das Angebot regelmäßig.</p>
+    <p class="hint">Preise in GTA$ für GTA Online. Tippe auf ein Fahrzeug für Details. Rabattpreis = dauerhaft günstigerer Preis nach einer Freischaltung (z. B. Mission). Angebote der Woche werden donnerstags aktualisiert. Daten und Bilder: gtacars.net, Stand Oktober 2026. Rockstar ändert das Angebot regelmäßig.</p>
   </section>
 
   <section id="view-kasse" hidden style="flex-direction:column;gap:14px">
@@ -404,6 +437,12 @@ nav.tabs button{white-space:nowrap}
       <button type="submit" class="btn primary">Speichern</button>
     </div>
   </form>
+</div>
+<div class="scrim" id="vdScrim" hidden>
+  <div class="sheet vsheet" role="dialog" aria-modal="true" aria-label="Fahrzeugdetails">
+    <button class="vdclose" id="vdClose" aria-label="Schließen">✕</button>
+    <div id="vdBody"></div>
+  </div>
 </div>
 <div id="toastHost"></div>
 
@@ -890,50 +929,115 @@ const SITES = [
   ["pedal","Pedal and Metal Cycles","Fahrräder"]
 ];
 const VCLASS = {sport:"Sportwagen", sport_classic:"Sportklassiker", super:"Supersportwagen", service:"Dienstfahrzeug", helicopter:"Hubschrauber", motorcycle:"Motorrad", suv:"SUV", plane:"Flugzeug", military:"Militär", off_road:"Geländewagen", commercial:"Nutzfahrzeug", muscle:"Muscle-Car", van:"Van", compacts:"Kompaktwagen", sedan:"Limousine", boat:"Boot", cycle:"Fahrrad", open_wheel:"Formelwagen", emergency:"Einsatzfahrzeug", coupe:"Coupé", industrial:"Industrie", utility:"Nutzfahrzeug"};
-let vehicles = null, vSite = "all", vLoading = false, vExpanded = {};
+let vehicles = null, vSales = {}, vSite = "all", vLoading = false, vExpanded = {}, vById = {};
+const UPGRADE_NAMES = {lsc:"Los Santos Customs", benny:"Benny's", agency:"Agentur-Werkstatt", carmeet:"LS Car Meet", hangar:"Hangar", arena:"Arena-Werkstatt", moc:"MOC (Bunker)", ch:"Clubhaus", facility:"Einrichtung", nclub:"Nachtclub-Lager", bunker:"Bunker", freakshop:"Freakshop", kosatka:"Kosatka", terr:"Terrorbyte"};
+const FLAG_NAMES = {weap:"Bewaffnet", imani:"Imani Tech", ev:"Elektro", boost:"Boost", offroad:"Geländetauglich"};
+const DT_NAMES = {rwd:"Heckantrieb", fwd:"Frontantrieb", awd:"Allradantrieb"};
+const favSet = () => new Set(Array.isArray(state.favs) ? state.favs : []);
 async function loadVehicles(){
   if(vehicles || vLoading) { if(vehicles) renderVehicles(); return; }
   if(!sb){ $("#vList").innerHTML = `<div class="empty">Die Fahrzeugliste braucht eine Verbindung zur Datenbank.</div>`; return; }
   vLoading = true;
-  const { data, error } = await sb.from("gta_vehicles").select("name,manufacturer,class,site,price,trade_price,removed,year,image").limit(2000);
+  const today = new Date().toISOString().slice(0,10);
+  const [vr, sr] = await Promise.all([
+    sb.from("gta_vehicles").select("*").limit(2000),
+    sb.from("gta_sales").select("name,discount_pct,sale_price,note,week_start,week_end").gte("week_end", today).lte("week_start", today)
+  ]);
   vLoading = false;
-  if(error){ $("#vList").innerHTML = `<div class="empty">Fahrzeugliste konnte nicht geladen werden. Lade die Seite neu.</div>`; return; }
-  vehicles = data;
-  const classes = [...new Set(data.map(v=>v.class))].sort((a,b)=>(VCLASS[a]||a).localeCompare(VCLASS[b]||b,"de"));
+  if(vr.error){ $("#vList").innerHTML = `<div class="empty">Fahrzeugliste konnte nicht geladen werden. Lade die Seite neu.</div>`; return; }
+  vehicles = vr.data; vById = Object.fromEntries(vehicles.map(v => [v.id, v]));
+  vSales = {}; (sr.data || []).forEach(x => vSales[x.name.toLowerCase()] = x);
+  const classes = [...new Set(vehicles.map(v=>v.class))].sort((a,b)=>(VCLASS[a]||a).localeCompare(VCLASS[b]||b,"de"));
   $("#vClass").innerHTML = `<option value="">Alle Klassen</option>` + classes.map(c => `<option value="${esc(c)}">${esc(VCLASS[c]||c)}</option>`).join("");
   renderVehicles();
 }
+const saleOf = v => vSales[v.name.toLowerCase()];
+const salePrice = v => { const x = saleOf(v); if(!x) return null; if(x.sale_price) return x.sale_price; if(x.discount_pct) return Math.round(v.price * (100 - x.discount_pct) / 100); return null; };
 function vFiltered(){
   const q = $("#vSearch").value.trim().toLowerCase(), cl = $("#vClass").value, showRem = $("#vRemoved").checked;
   const maxRaw = $("#vMax").value.trim(), max = maxRaw ? parseAmount(maxRaw) : Infinity;
-  return vehicles.filter(v => (showRem || !v.removed) && (!cl || v.class === cl) && v.price <= (isFinite(max) ? max : Infinity)
+  return vehicles.filter(v => (showRem || !v.removed) && (!cl || v.class === cl) && (salePrice(v) ?? v.price) <= (isFinite(max) ? max : Infinity)
     && (!q || (v.name + " " + v.manufacturer).toLowerCase().includes(q)));
 }
 function renderVehicles(){
   if(!vehicles) return;
-  const list = vFiltered(), sort = $("#vSort").value;
+  const favs = favSet();
+  const base = vFiltered(), sort = $("#vSort").value;
+  const nFav = base.filter(v => favs.has(v.name)).length, nSale = base.filter(v => saleOf(v)).length;
+  const list = vSite === "fav" ? base.filter(v => favs.has(v.name)) : vSite === "sale" ? base.filter(v => saleOf(v)) : base;
   const cmp = {price:(a,b)=>a.price-b.price, "price-desc":(a,b)=>b.price-a.price, name:(a,b)=>a.name.localeCompare(b.name,"de"), year:(a,b)=>b.year-a.year||a.price-b.price}[sort];
-  const counts = {}; list.forEach(v => counts[v.site] = (counts[v.site]||0) + 1);
-  $("#vSites").innerHTML = `<button class="chip" data-vsite="all" aria-pressed="${vSite==="all"}">Alle Seiten · ${list.length}</button>` +
-    SITES.map(([id,name]) => `<button class="chip" data-vsite="${id}" aria-pressed="${vSite===id}" ${counts[id]?"":"disabled"}>${esc(name.replace(" Super Autos","").replace(" Original Motor Works","").replace(" Cache & Carry",""))} · ${counts[id]||0}</button>`).join("");
-  const groups = SITES.filter(([id]) => (vSite==="all" || vSite===id) && counts[id]);
-  if(!groups.length){ $("#vList").innerHTML = `<div class="empty">Keine Fahrzeuge für diese Auswahl.</div>`; return; }
+  const counts = {}; base.forEach(v => counts[v.site] = (counts[v.site]||0) + 1);
+  $("#vSites").innerHTML = `<button class="chip" data-vsite="all" aria-pressed="${vSite==="all"}">Alle Seiten · ${base.length}</button>`
+    + `<button class="chip" data-vsite="fav" aria-pressed="${vSite==="fav"}">★ Favoriten · ${nFav}</button>`
+    + (nSale ? `<button class="chip chip-sale" data-vsite="sale" aria-pressed="${vSite==="sale"}">Angebote der Woche · ${nSale}</button>` : "")
+    + SITES.map(([id,name]) => `<button class="chip" data-vsite="${id}" aria-pressed="${vSite===id}" ${counts[id]?"":"disabled"}>${esc(name.replace(" Super Autos","").replace(" Original Motor Works","").replace(" Cache & Carry",""))} · ${counts[id]||0}</button>`).join("");
+  const special = vSite === "all" || vSite === "fav" || vSite === "sale";
+  const lcounts = {}; list.forEach(v => lcounts[v.site] = (lcounts[v.site]||0) + 1);
+  const groups = SITES.filter(([id]) => (special || vSite===id) && lcounts[id]);
+  if(!groups.length){
+    $("#vList").innerHTML = `<div class="empty">${vSite==="fav" ? "Noch keine Favoriten. Tippe bei einem Fahrzeug auf ☆, um es zu merken." : "Keine Fahrzeuge für diese Auswahl."}</div>`; return;
+  }
   const LIMIT = vSite==="all" ? 15 : 10000;
   $("#vList").innerHTML = groups.map(([id,name,desc]) => {
     const rows = list.filter(v=>v.site===id).sort(cmp), open = vExpanded[id] || rows.length <= LIMIT, shown = open ? rows : rows.slice(0, LIMIT);
     return `<section class="vsite"><header><h3>${esc(name)}</h3><span>${esc(desc)} · ${rows.length} Fahrzeuge</span></header>
-      ${shown.map(v => `<div class="vrow ${v.removed?"rem":""}">
+      ${shown.map(v => { const sp = salePrice(v), fav = favs.has(v.name); return `<div class="vrow ${v.removed?"rem":""}" data-vd="${v.id}" tabindex="0" role="button" aria-label="Details zu ${esc(v.name)}">
         <div class="vimg">${v.image ? `<img src="https://gtacars.net/images/${esc(v.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
-        <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year].filter(Boolean).join(" · "))}</small></div>
-        <span class="vp">${money(v.price)}</span>
-        <span class="vt">${v.trade_price ? "Rabatt " + money(v.trade_price) : ""}</span></div>`).join("")}
+        <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}${saleOf(v)?`<span class="badge sale">${saleOf(v).discount_pct ? "−" + saleOf(v).discount_pct + " %" : "Angebot"}</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year].filter(Boolean).join(" · "))}</small></div>
+        <span class="vp">${sp ? `<s>${money(v.price)}</s> ${money(sp)}` : money(v.price)}<small class="vt">${v.trade_price ? "Rabatt " + money(v.trade_price) : ""}</small></span>
+        <button class="vfav" data-fav="${esc(v.name)}" aria-pressed="${fav}" aria-label="${fav ? "Aus Favoriten entfernen" : "Zu Favoriten"}">${fav ? "★" : "☆"}</button></div>`; }).join("")}
       ${open ? "" : `<div class="vmore"><button class="btn small" data-vmore="${id}">Alle ${rows.length} anzeigen</button></div>`}</section>`;
   }).join("");
 }
+function toggleFav(name){
+  const f = favSet(); if(f.has(name)) f.delete(name); else f.add(name);
+  state.favs = [...f]; saveState(); renderVehicles();
+  if(!$("#vdScrim").hidden) { const cur = vById[$("#vdScrim").dataset.id]; if(cur) openVehicle(cur.id); }
+}
+const pctBar = (label, val) => val == null ? "" : `<div class="vstat"><span>${label}</span><div class="vbar"><i style="width:${Math.round(val*100)}%"></i></div><b class="num">${Math.round(val*100)}</b></div>`;
+function fmtLap(ms){ const m = Math.floor(ms/60000), sec = (ms%60000)/1000; return m + ":" + sec.toFixed(3).padStart(6,"0").replace(".", ","); }
+function openVehicle(id){
+  const v = vById[id]; if(!v) return;
+  const offers = vehicles.filter(x => x.name === v.name), favs = favSet(), fav = favs.has(v.name), sp = salePrice(v), sale = saleOf(v);
+  const ups = (v.upgrades||"").split(",").filter(u => UPGRADE_NAMES[u]).map(u => UPGRADE_NAMES[u]);
+  const flags = (v.flags||"").split(",").filter(f => FLAG_NAMES[f]).map(f => FLAG_NAMES[f]);
+  const facts = [
+    ["Gemessene Höchstgeschw.", v.top_speed_mph ? `${Math.round(v.top_speed_mph*1.609)} km/h <small>(${Math.round(v.top_speed_mph)} mph)</small>` : ""],
+    ["Rundenzeit (Testkurs)", v.lap_time_ms ? fmtLap(v.lap_time_ms) : ""],
+    ["Antrieb", DT_NAMES[v.drivetrain] || ""],
+    ["Sitze", v.seats || ""],
+    ["Gewicht", v.mass ? v.mass.toLocaleString("de-DE") + " kg" : ""],
+    ["Rennklasse", v.race_tier ? `Tier ${esc(v.race_tier)}` : ""],
+    ["Erschienen", v.year || ""]
+  ].filter(f => f[1] !== "" && f[1] != null);
+  $("#vdScrim").dataset.id = id;
+  $("#vdBody").innerHTML = `
+    ${v.image ? `<div class="vdimg"><img src="https://gtacars.net/images/${esc(v.image)}" alt="${esc(v.name)}" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></div>` : ""}
+    <div class="vdhead"><div><h2>${esc(v.name)}</h2><p>${esc([v.manufacturer, VCLASS[v.class]||v.class].filter(Boolean).join(" · "))}</p></div>
+      <button class="vfav big" data-fav="${esc(v.name)}" aria-pressed="${fav}" aria-label="${fav ? "Aus Favoriten entfernen" : "Zu Favoriten"}">${fav ? "★" : "☆"}</button></div>
+    <div class="vdprices">${offers.map(o => { const osp = salePrice(o); return `<div class="vdoffer"><span>${esc((SITES.find(s=>s[0]===o.site)||[,o.site])[1])}${o.removed?" <small>(nicht mehr im Angebot)</small>":""}</span>
+      <b class="num">${osp ? `<s>${money(o.price)}</s> ${money(osp)}` : money(o.price)}</b>${o.trade_price ? `<small class="num">Rabattpreis ${money(o.trade_price)}</small>` : ""}</div>`; }).join("")}
+      ${sale ? `<p class="hint">Angebot ${sale.discount_pct ? "−" + sale.discount_pct + " % " : ""}bis ${new Date(sale.week_end).toLocaleDateString("de-DE")}${sale.note ? " · " + esc(sale.note) : ""}</p>` : ""}</div>
+    ${v.stat_speed != null ? `<div class="vstats"><div class="subh">Werte im Spiel (ohne Tuning)</div>${pctBar("Höchstgeschw.", v.stat_speed)}${pctBar("Beschleunigung", v.stat_accel)}${pctBar("Bremsen", v.stat_braking)}${pctBar("Traktion", v.stat_traction)}</div>` : ""}
+    ${facts.length ? `<dl class="vfacts">${facts.map(f => `<div><dt>${f[0]}</dt><dd>${f[1]}</dd></div>`).join("")}</dl>` : ""}
+    ${flags.length ? `<div class="chips">${flags.map(f => `<span class="chip" style="cursor:default">${esc(f)}</span>`).join("")}</div>` : ""}
+    ${ups.length ? `<p class="hint"><b>Tuning bei:</b> ${esc(ups.join(", "))}</p>` : ""}
+    ${v.slug ? `<p class="hint"><a href="https://gtacars.net/gta5/${encodeURIComponent(v.slug)}" target="_blank" rel="noopener">Mehr auf gtacars.net ↗</a></p>` : ""}`;
+  $("#vdScrim").hidden = false;
+  setTimeout(() => $("#vdClose").focus(), 20);
+}
+function closeVehicle(){ $("#vdScrim").hidden = true; }
 ["vSearch","vMax"].forEach(id => $("#"+id).addEventListener("input", () => renderVehicles()));
 ["vClass","vSort","vRemoved"].forEach(id => $("#"+id).addEventListener("change", () => renderVehicles()));
 $("#vSites").addEventListener("click", e => { const b = e.target.closest("[data-vsite]"); if(!b) return; vSite = b.dataset.vsite; renderVehicles(); });
-$("#vList").addEventListener("click", e => { const b = e.target.closest("[data-vmore]"); if(!b) return; vExpanded[b.dataset.vmore] = true; renderVehicles(); });
+$("#vList").addEventListener("click", e => {
+  const m = e.target.closest("[data-vmore]"); if(m){ vExpanded[m.dataset.vmore] = true; renderVehicles(); return; }
+  const f = e.target.closest("[data-fav]"); if(f){ e.stopPropagation(); toggleFav(f.dataset.fav); return; }
+  const r = e.target.closest("[data-vd]"); if(r) openVehicle(Number(r.dataset.vd));
+});
+$("#vList").addEventListener("keydown", e => { if((e.key === "Enter" || e.key === " ") && e.target.matches("[data-vd]")){ e.preventDefault(); openVehicle(Number(e.target.dataset.vd)); } });
+$("#vdScrim").addEventListener("click", e => { if(e.target.id === "vdScrim" || e.target.closest("#vdClose")) closeVehicle(); const f = e.target.closest("[data-fav]"); if(f) toggleFav(f.dataset.fav); });
+document.addEventListener("keydown", e => { if(e.key === "Escape" && !$("#vdScrim").hidden) closeVehicle(); });
 
 /* ---------- Cayo Perico ---------- */
 const CAYO_ROOMS = [
