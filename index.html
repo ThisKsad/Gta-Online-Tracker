@@ -983,7 +983,7 @@ function renderVehicles(){
     return `<section class="vsite"><header><h3>${esc(name)}</h3><span>${esc(desc)} · ${rows.length} Fahrzeuge</span></header>
       ${shown.map(v => { const sp = salePrice(v), fav = favs.has(v.name); return `<div class="vrow ${v.removed?"rem":""}" data-vd="${v.id}" tabindex="0" role="button" aria-label="Details zu ${esc(v.name)}">
         <div class="vimg">${v.image ? `<img src="https://gtacars.net/images/${esc(v.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
-        <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}${saleOf(v)?`<span class="badge sale">${saleOf(v).discount_pct ? "−" + saleOf(v).discount_pct + " %" : "Angebot"}</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year].filter(Boolean).join(" · "))}</small></div>
+        <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}${saleOf(v)?`<span class="badge sale">${saleOf(v).discount_pct === 100 ? "Gratis" : saleOf(v).discount_pct ? "−" + saleOf(v).discount_pct + " %" : "Angebot"}</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year].filter(Boolean).join(" · "))}</small></div>
         <span class="vp">${sp ? `<s>${money(v.price)}</s> ${money(sp)}` : money(v.price)}<small class="vt">${v.trade_price ? "Rabatt " + money(v.trade_price) : ""}</small></span>
         <button class="vfav" data-fav="${esc(v.name)}" aria-pressed="${fav}" aria-label="${fav ? "Aus Favoriten entfernen" : "Zu Favoriten"}">${fav ? "★" : "☆"}</button></div>`; }).join("")}
       ${open ? "" : `<div class="vmore"><button class="btn small" data-vmore="${id}">Alle ${rows.length} anzeigen</button></div>`}</section>`;
@@ -1017,7 +1017,7 @@ function openVehicle(id){
       <button class="vfav big" data-fav="${esc(v.name)}" aria-pressed="${fav}" aria-label="${fav ? "Aus Favoriten entfernen" : "Zu Favoriten"}">${fav ? "★" : "☆"}</button></div>
     <div class="vdprices">${offers.map(o => { const osp = salePrice(o); return `<div class="vdoffer"><span>${esc((SITES.find(s=>s[0]===o.site)||[,o.site])[1])}${o.removed?" <small>(nicht mehr im Angebot)</small>":""}</span>
       <b class="num">${osp ? `<s>${money(o.price)}</s> ${money(osp)}` : money(o.price)}</b>${o.trade_price ? `<small class="num">Rabattpreis ${money(o.trade_price)}</small>` : ""}</div>`; }).join("")}
-      ${sale ? `<p class="hint">Angebot ${sale.discount_pct ? "−" + sale.discount_pct + " % " : ""}bis ${new Date(sale.week_end).toLocaleDateString("de-DE")}${sale.note ? " · " + esc(sale.note) : ""}</p>` : ""}</div>
+      ${sale ? `<p class="hint">${sale.discount_pct === 100 ? "Diese Woche gratis zu gewinnen " : "Angebot " + (sale.discount_pct ? "−" + sale.discount_pct + " % " : "")}bis ${new Date(sale.week_end).toLocaleDateString("de-DE")}${sale.note ? " · " + esc(sale.note) : ""}</p>` : ""}</div>
     ${v.stat_speed != null ? `<div class="vstats"><div class="subh">Werte im Spiel (ohne Tuning)</div>${pctBar("Höchstgeschw.", v.stat_speed)}${pctBar("Beschleunigung", v.stat_accel)}${pctBar("Bremsen", v.stat_braking)}${pctBar("Traktion", v.stat_traction)}</div>` : ""}
     ${facts.length ? `<dl class="vfacts">${facts.map(f => `<div><dt>${f[0]}</dt><dd>${f[1]}</dd></div>`).join("")}</dl>` : ""}
     ${flags.length ? `<div class="chips">${flags.map(f => `<span class="chip" style="cursor:default">${esc(f)}</span>`).join("")}</div>` : ""}
