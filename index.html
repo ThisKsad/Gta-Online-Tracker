@@ -275,6 +275,8 @@ nav.tabs button{white-space:nowrap}
 .vfav.big{font-size:30px}
 .badge.sale{background:var(--good-soft);color:var(--good)}
 .chip-sale{border-color:var(--good);color:var(--good)}
+html.noscroll,html.noscroll body{overflow:hidden;overscroll-behavior:none}
+.scrim{overscroll-behavior:contain}
 .vsheet{max-width:620px;position:relative;gap:14px}
 .vdclose{position:absolute;top:10px;right:10px;border:none;background:var(--surface2);border-radius:999px;width:34px;height:34px;font-size:15px;z-index:2}
 .vdimg{margin:-18px -18px 0;border-radius:16px 16px 0 0;overflow:hidden;background:var(--surface2);aspect-ratio:16/9;max-width:calc(100% + 36px)}
@@ -367,7 +369,8 @@ nav.tabs button{white-space:nowrap}
     <div class="vtools">
       <input id="vSearch" type="search" placeholder="Fahrzeug oder Hersteller suchen" aria-label="Fahrzeug suchen" autocomplete="off">
       <select id="vClass" aria-label="Fahrzeugklasse"></select>
-      <select id="vSort" aria-label="Sortierung"><option value="price">Preis aufsteigend</option><option value="price-desc">Preis absteigend</option><option value="name">Name A–Z</option><option value="year">Neueste zuerst</option></select>
+      <select id="vSort" aria-label="Sortierung"><option value="price">Preis aufsteigend</option><option value="price-desc">Preis absteigend</option><option value="name">Name A–Z</option><option value="year">Neueste zuerst</option><option value="speed">Höchstgeschw. (gemessen)</option><option value="accel">Beschleunigung</option><option value="lap">Rundenzeit</option></select>
+      <input id="vMinSpeed" inputmode="numeric" placeholder="Min. km/h" aria-label="Mindest-Höchstgeschwindigkeit in km/h" autocomplete="off" style="width:110px">
       <input id="vMax" inputmode="decimal" placeholder="Max. Preis, z. B. 2m" aria-label="Maximaler Preis" autocomplete="off">
       <label class="vchk"><input type="checkbox" id="vRemoved"> Nicht mehr erhältliche zeigen</label>
     </div>
@@ -878,9 +881,9 @@ function openForm(type, cat, note, source){
   const d = new Date(); d.setSeconds(0,0); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   $("#fDate").value = d.toISOString().slice(0,16);
   $("#amountPreview").textContent = "Kürzel: k = Tausend, m = Million";
-  $("#scrim").hidden = false; setTimeout(() => $("#fAmount").focus(), 30);
+  $("#scrim").hidden = false; document.documentElement.classList.add("noscroll"); setTimeout(() => $("#fAmount").focus(), 30);
 }
-function closeForm(){ $("#scrim").hidden = true; if(lastFocus && lastFocus.focus) lastFocus.focus(); }
+function closeForm(){ $("#scrim").hidden = true; if($("#vdScrim").hidden) document.documentElement.classList.remove("noscroll"); if(lastFocus && lastFocus.focus) lastFocus.focus(); }
 function setType(type, cat){
   formType = type;
   $("#segIn").setAttribute("aria-pressed", String(type==="in"));
@@ -956,7 +959,9 @@ const salePrice = v => { const x = saleOf(v); if(!x) return null; if(x.sale_pric
 function vFiltered(){
   const q = $("#vSearch").value.trim().toLowerCase(), cl = $("#vClass").value, showRem = $("#vRemoved").checked;
   const maxRaw = $("#vMax").value.trim(), max = maxRaw ? parseAmount(maxRaw) : Infinity;
+  const minKmh = parseFloat($("#vMinSpeed").value.replace(",", ".")) || 0;
   return vehicles.filter(v => (showRem || !v.removed) && (!cl || v.class === cl) && (salePrice(v) ?? v.price) <= (isFinite(max) ? max : Infinity)
+    && (!minKmh || (v.top_speed_mph && v.top_speed_mph * 1.609 >= minKmh))
     && (!q || (v.name + " " + v.manufacturer).toLowerCase().includes(q)));
 }
 function renderVehicles(){
@@ -965,7 +970,7 @@ function renderVehicles(){
   const base = vFiltered(), sort = $("#vSort").value;
   const nFav = base.filter(v => favs.has(v.name)).length, nSale = base.filter(v => saleOf(v)).length;
   const list = vSite === "fav" ? base.filter(v => favs.has(v.name)) : vSite === "sale" ? base.filter(v => saleOf(v)) : base;
-  const cmp = {price:(a,b)=>a.price-b.price, "price-desc":(a,b)=>b.price-a.price, name:(a,b)=>a.name.localeCompare(b.name,"de"), year:(a,b)=>b.year-a.year||a.price-b.price}[sort];
+  const cmp = {price:(a,b)=>a.price-b.price, "price-desc":(a,b)=>b.price-a.price, name:(a,b)=>a.name.localeCompare(b.name,"de"), year:(a,b)=>b.year-a.year||a.price-b.price, speed:(a,b)=>(b.top_speed_mph||0)-(a.top_speed_mph||0), accel:(a,b)=>(b.stat_accel??-1)-(a.stat_accel??-1), lap:(a,b)=>(a.lap_time_ms||1e9)-(b.lap_time_ms||1e9)}[sort];
   const counts = {}; base.forEach(v => counts[v.site] = (counts[v.site]||0) + 1);
   $("#vSites").innerHTML = `<button class="chip" data-vsite="all" aria-pressed="${vSite==="all"}">Alle Seiten · ${base.length}</button>`
     + `<button class="chip" data-vsite="fav" aria-pressed="${vSite==="fav"}">★ Favoriten · ${nFav}</button>`
@@ -983,7 +988,7 @@ function renderVehicles(){
     return `<section class="vsite"><header><h3>${esc(name)}</h3><span>${esc(desc)} · ${rows.length} Fahrzeuge</span></header>
       ${shown.map(v => { const sp = salePrice(v), fav = favs.has(v.name); return `<div class="vrow ${v.removed?"rem":""}" data-vd="${v.id}" tabindex="0" role="button" aria-label="Details zu ${esc(v.name)}">
         <div class="vimg">${v.image ? `<img src="https://gtacars.net/images/${esc(v.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
-        <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}${saleOf(v)?`<span class="badge sale">${saleOf(v).discount_pct === 100 ? "Gratis" : saleOf(v).discount_pct ? "−" + saleOf(v).discount_pct + " %" : "Angebot"}</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year].filter(Boolean).join(" · "))}</small></div>
+        <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}${saleOf(v)?`<span class="badge sale">${saleOf(v).discount_pct === 100 ? "Gratis" : saleOf(v).discount_pct ? "−" + saleOf(v).discount_pct + " %" : "Angebot"}</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year, v.top_speed_mph ? Math.round(v.top_speed_mph*1.609) + " km/h" : ""].filter(Boolean).join(" · "))}</small></div>
         <span class="vp">${sp ? `<s>${money(v.price)}</s> ${money(sp)}` : money(v.price)}<small class="vt">${v.trade_price ? "Rabatt " + money(v.trade_price) : ""}</small></span>
         <button class="vfav" data-fav="${esc(v.name)}" aria-pressed="${fav}" aria-label="${fav ? "Aus Favoriten entfernen" : "Zu Favoriten"}">${fav ? "★" : "☆"}</button></div>`; }).join("")}
       ${open ? "" : `<div class="vmore"><button class="btn small" data-vmore="${id}">Alle ${rows.length} anzeigen</button></div>`}</section>`;
@@ -1023,11 +1028,11 @@ function openVehicle(id){
     ${flags.length ? `<div class="chips">${flags.map(f => `<span class="chip" style="cursor:default">${esc(f)}</span>`).join("")}</div>` : ""}
     ${ups.length ? `<p class="hint"><b>Tuning bei:</b> ${esc(ups.join(", "))}</p>` : ""}
     ${v.slug ? `<p class="hint"><a href="https://gtacars.net/gta5/${encodeURIComponent(v.slug)}" target="_blank" rel="noopener">Mehr auf gtacars.net ↗</a></p>` : ""}`;
-  $("#vdScrim").hidden = false;
+  $("#vdScrim").hidden = false; document.documentElement.classList.add("noscroll");
   setTimeout(() => $("#vdClose").focus(), 20);
 }
-function closeVehicle(){ $("#vdScrim").hidden = true; }
-["vSearch","vMax"].forEach(id => $("#"+id).addEventListener("input", () => renderVehicles()));
+function closeVehicle(){ $("#vdScrim").hidden = true; if($("#scrim").hidden) document.documentElement.classList.remove("noscroll"); }
+["vSearch","vMax","vMinSpeed"].forEach(id => $("#"+id).addEventListener("input", () => renderVehicles()));
 ["vClass","vSort","vRemoved"].forEach(id => $("#"+id).addEventListener("change", () => renderVehicles()));
 $("#vSites").addEventListener("click", e => { const b = e.target.closest("[data-vsite]"); if(!b) return; vSite = b.dataset.vsite; renderVehicles(); });
 $("#vList").addEventListener("click", e => {
