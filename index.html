@@ -215,6 +215,16 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 .plan .pl{display:flex;justify-content:space-between;gap:8px}
 .bagbar{height:12px;border-radius:999px;background:var(--surface2);overflow:hidden;display:flex}
 .bagbar i{display:block;height:100%}
+.cdbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:var(--surface2)}
+.cdrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cdclock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;line-height:1}
+.cdbar{display:flex;gap:3px;height:8px}
+.cdbar span{flex:1;background:var(--surface);border-radius:999px;overflow:hidden}
+.cdbar span i{display:block;height:100%;width:0}
+.cdbar span.p1 i{background:var(--bad)} .cdbar span.p2 i{background:var(--warn)}
+.cdlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.cdlbl button{border:none;background:none;padding:0;color:var(--muted);font-size:11px;text-decoration:underline dotted;text-underline-offset:3px}
+.heist .cdtag{font-size:12px;font-weight:700}
 @media (max-width:820px){.cayo-main{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:480px){.heists{grid-template-columns:minmax(0,1fr)}.slot{grid-template-columns:minmax(0,1fr) auto}.slot .sl{grid-column:1/-1}}
 @media (max-width:720px){
@@ -265,6 +275,7 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
     <div class="cayo-main">
       <div class="panel">
         <div class="toolbar"><h2 id="cayoTitle">Anwesen</h2><div style="display:flex;gap:6px;flex-wrap:wrap" id="cayoTools"></div></div>
+        <div class="cdbox" id="cayoCd"></div>
         <div class="mapbox" id="cayoMap"></div>
         <div class="toolbar"><p class="hint" id="mapHint" style="flex:1;min-width:200px">Vereinfachte Karte. Tippe einen Raum an, um ihn zu bearbeiten.</p><button class="btn small" id="moveBtn" data-act="cayomove">Räume verschieben</button></div>
         <div class="primbox">
@@ -892,12 +903,65 @@ document.addEventListener("pointerup", e => {
   if(!drag || e.pointerId !== drag.id) return;
   ensureCayo(); state.cayo.pos = {...(state.cayo.pos||{}), [drag.key]:{x:drag.x, y:drag.y}}; drag = null; saveState();
 });
+/* Cayo-Cooldowns: erst Neustart-Sperre, danach Hard-Mode-Fenster */
+let cdEdit = false;
+function cdConf(){ ensureCayo(); state.cayo.cd = state.cayo.cd || {restart:48, hard:48}; return state.cayo.cd; }
+function cdStatus(h, now = Date.now()){
+  const c = cdConf();
+  if(!h.cdStart) return {phase:0, txt:"Kein Cooldown aktiv", left:0, p1:0, p2:0};
+  const el = now - h.cdStart, r = c.restart*60000, hd = c.hard*60000;
+  if(el < r) return {phase:1, txt:"Neustart gesperrt", left:r-el, p1:el/r*100, p2:0};
+  if(el < r+hd) return {phase:2, txt:"Hard Mode verfügbar", left:r+hd-el, p1:100, p2:(el-r)/hd*100};
+  return {phase:3, txt:"Bereit (normaler Modus)", left:0, p1:100, p2:100};
+}
+function startCd(h){ h.cdStart = Date.now(); h.cdNote = 1; saveState(); }
+function renderCd(){
+  const box = $("#cayoCd"); if(!box) return;
+  const h = ensureCayo(), c = cdConf(), st = cdStatus(h);
+  const color = st.phase===1 ? "var(--bad)" : st.phase===2 ? "var(--warn)" : st.phase===3 ? "var(--good)" : "var(--muted)";
+  box.innerHTML = `
+    <div class="cdrow"><span class="subh" style="margin:0">Cooldown</span><span class="state" style="background:transparent;color:${color};padding:0">${st.txt}</span></div>
+    <div class="cdrow">
+      <span class="cdclock" style="color:${color}" data-k="cdclock">${st.phase===1||st.phase===2 ? fmtClock(st.left) : "–"}</span>
+      <span class="tact"><button class="btn small primary" data-act="cdstart">${h.cdStart ? "Neu starten" : "Starten"}</button>${h.cdStart ? `<button class="btn small ghost" data-act="cdreset">Zurücksetzen</button>` : ""}</span>
+    </div>
+    <div class="cdbar"><span class="p1"><i data-k="cdp1" style="width:${st.p1}%"></i></span><span class="p2"><i data-k="cdp2" style="width:${st.p2}%"></i></span></div>
+    ${cdEdit ? `<form class="durform" data-act="cdform"><label>Neustart <input id="cdR" value="${c.restart}" inputmode="numeric" style="width:56px"> Min</label><label>Hard Mode <input id="cdH" value="${c.hard}" inputmode="numeric" style="width:56px"> Min</label><button class="btn small primary" type="submit">OK</button></form>`
+      : `<div class="cdlbl"><button type="button" data-act="cdedit">Neustart-Sperre ${c.restart} Min</button><button type="button" data-act="cdedit">Hard-Mode-Fenster ${c.hard} Min</button></div>`}`;
+}
+function cdTag(h){
+  const st = cdStatus(h);
+  if(st.phase===1) return `<span class="cdtag" style="color:var(--bad)">Gesperrt · ${fmtClock(st.left)}</span>`;
+  if(st.phase===2) return `<span class="cdtag" style="color:var(--warn)">Hard Mode · noch ${fmtClock(st.left)}</span>`;
+  if(st.phase===3) return `<span class="cdtag" style="color:var(--good)">Bereit</span>`;
+  return "";
+}
+function cayoTick(){
+  if(!state.cayo || !Array.isArray(state.cayo.heists)) return;
+  const now = Date.now(); let msgs = [];
+  state.cayo.heists.forEach(h => {
+    if(!h.cdStart) return;
+    const st = cdStatus(h, now);
+    if(st.phase >= 2 && (h.cdNote||0) < 2){ h.cdNote = 2; msgs.push(gen(h.name) + " Cayo: Hard Mode verfügbar"); }
+    if(st.phase >= 3 && (h.cdNote||0) < 3){ h.cdNote = 3; msgs.push(gen(h.name) + " Cayo: Hard-Mode-Fenster vorbei"); }
+  });
+  if(msgs.length){ saveState(); beep(); toast(msgs.join(" · ")); if(view==="cayo") renderCayo(); return; }
+  if(view !== "cayo" || cdEdit) return;
+  const h = ensureCayo(), st = cdStatus(h, now);
+  const ck = document.querySelector('[data-k="cdclock"]'); if(ck) ck.textContent = st.phase===1||st.phase===2 ? fmtClock(st.left) : "–";
+  const p1 = document.querySelector('[data-k="cdp1"]'), p2 = document.querySelector('[data-k="cdp2"]');
+  if(p1) p1.style.width = st.p1 + "%"; if(p2) p2.style.width = st.p2 + "%";
+  state.cayo.heists.forEach((x,i) => { const el = document.querySelector(`[data-cdtag="${i}"]`); if(el) el.innerHTML = cdTag(x); });
+}
+setInterval(cayoTick, 1000);
+
 function renderCayo(){
   const h = ensureCayo();
   $("#heistChips").innerHTML = state.cayo.heists.map((x,i) => { const c = tally(x); return `
     <button type="button" class="heist" data-act="heist" data-i="${i}" aria-pressed="${i===cayoSel}">
       <span class="hn">${esc(gen(x.name))} Cayo</span>
       <span class="hp">Hauptziel: <b>${x.primary?esc(x.primary):"noch offen"}</b></span>
+      <span data-cdtag="${i}">${cdTag(x)}</span>
       <span class="tally"><span><i class="sw gold"></i>${c.gold} Gold</span><span><i class="sw art"></i>${c.art} ${c.art===1?"Bild":"Bilder"}</span><span><i class="sw cash"></i>${c.cash} Bargeld</span>${c["?"]?`<span><i class="sw unk"></i>${c["?"]} offen</span>`:""}</span>
     </button>`; }).join("");
 
@@ -909,6 +973,7 @@ function renderCayo(){
        <button class="btn small ghost danger" data-act="cayoreset">${resetArmed?"Wirklich leeren?":"Neu auskundschaften"}</button>
        <button class="btn small primary" data-act="cayodone">Abgeschlossen</button>`;
   $("#cayoMap").innerHTML = mapSVG(h);
+  renderCd();
   $("#moveBtn").textContent = moving ? "Fertig" : "Räume verschieben"; $("#moveBtn").classList.toggle("primary", moving);
   $("#mapHint").textContent = moving ? "Zieh jeden Raum auf das richtige Gebäude. Die Positionen gelten für beide Durchgänge." : "Vereinfachte Karte. Tippe einen Raum an, um ihn zu bearbeiten.";
 
@@ -1000,12 +1065,14 @@ document.addEventListener("click", e => {
     if(resetArmed){ const h = ensureCayo(); h.slots = {}; h.primary = ""; resetArmed = false; selRoom = null; saveState(); renderCayo(); toast(gen(h.name) + " Cayo geleert"); }
     else { resetArmed = true; renderCayo(); setTimeout(() => { if(resetArmed){ resetArmed = false; renderCayo(); } }, 3500); }
   }
+  if(act === "cdstart"){ startCd(ensureCayo()); renderCayo(); }
+  if(act === "cdreset"){ const h = ensureCayo(); h.cdStart = null; h.cdNote = 0; saveState(); renderCayo(); }
+  if(act === "cdedit"){ cdEdit = true; renderCd(); const i = $("#cdR"); if(i){ i.focus(); i.select(); } }
   if(act === "cayodone"){
-    const h = ensureCayo();
+    const h = ensureCayo(); startCd(h); renderCayo();
     let cd = null; state.biz.forEach(bz => { if(bz.name === "Cayo Perico") bz.timers.forEach(t => { if(t.kind === "cooldown" && !cd) cd = t; }); });
     if(cd){ startTimer(cd); saveState(); renderTimers(); }
     openForm("in", "Heist", gen(h.name) + " Durchgang" + (h.primary ? " – " + h.primary : ""), "Cayo Perico");
-    if(!cd) setTimeout(() => toast("Tipp: Füge im Timer „Cayo Perico“ hinzu, dann startet der Cooldown hier automatisch."), 400);
   }
   if(act === "pause"){ const [,t] = findTimer(id); t.paused = !t.paused; settle(); saveState(); tick(); }
   if(act === "reset"){ const [,t] = findTimer(id); Object.assign(t,{armed:false,paused:false,elapsed:0,resumedAt:null,notified:false}); saveState(); tick(); }
@@ -1031,6 +1098,11 @@ document.addEventListener("submit", e => {
     const [,t] = findTimer(f.dataset.id); const v = parseDur(document.getElementById("dur-"+t.id).value);
     if(isFinite(v) && v > 0){ t.min = v; if(elapsedOf(t) < v*60000) t.notified = false; settle(); saveState(); }
     editDur = null; renderTimers(true);
+  }
+  if(f.dataset.act === "cdform"){
+    const c = cdConf(), r = parseInt($("#cdR").value,10), hd = parseInt($("#cdH").value,10);
+    if(r > 0 && r < 1000) c.restart = r; if(hd >= 0 && hd < 1000) c.hard = hd;
+    cdEdit = false; saveState(); renderCayo();
   }
   if(f.dataset.act === "heistname"){
     const n = $("#heistNameInput").value.trim().slice(0,24); if(n){ ensureCayo().name = n; saveState(); }
