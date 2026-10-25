@@ -270,7 +270,7 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
   <section id="view-timer" style="display:flex;flex-direction:column;gap:14px">
     <div class="toolbar">
       <p class="hint">In GTA Online laufen Nachschub und Produktion nur, solange du in einer Session bist. Schalte oben auf „Offline“, wenn du aufhörst. Die Zeiten sind Richtwerte für voll ausgebaute Geschäfte (alle Upgrades): „Nachschub“ zeigt, wann ein voller Nachschub verbraucht ist; tippe auf eine Dauer, um sie anzupassen.</p>
-      <button class="btn primary" id="addBizBtn">+ Geschäft</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="finale" title="Alle laufenden Session-Timer um 15 Minuten verlängern">+15 Min Finale</button><button class="btn primary" id="addBizBtn">+ Geschäft</button></div>
     </div>
     <div id="addPanel" class="addpanel" hidden></div>
     <div class="grid" id="bizGrid"></div>
@@ -599,7 +599,7 @@ function timerStatus(t, now){
   if(!t.armed) return {cls:"st-idle", txt:"Bereit", left: cyc>1 ? per : total, pct:0, done:false, cycles:0};
   if(t.deliverAt && t.deliverAt > now){ const dl = t.deliverAt - now; return {cls:"st-deliv", txt:"Lieferung unterwegs", left:dl, pct:(1 - dl/(DELIVERY_MIN*60000))*100, done:false, deliv:true, cycles:0}; }
   if(total - el <= 0) return {cls:"st-done", txt: t.kind==="supply" ? "Leer" : t.kind==="cooldown" ? "Verfügbar" : "Voll", left:0, pct:100, done:true, cycles:cyc};
-  const pct = Math.min(100, el/total*100);
+  const pct = Math.max(0, Math.min(100, el/total*100));
   if(cyc > 1){
     const base = {left, pct, done:false, cycles:doneCycles};
     if(t.paused) return {...base, cls:"st-hold", txt:`${doneCycles}/${cyc} · Pausiert`};
@@ -1011,6 +1011,7 @@ function renderCayo(){
     : `<button class="btn small" data-act="cayoplayers">${h.players===1?"Solo":"2 Spieler"}</button>
        <button class="btn small ghost" data-act="cayorename">Umbenennen</button>
        <button class="btn small ghost danger" data-act="cayoreset">${resetArmed?"Wirklich leeren?":"Neu auskundschaften"}</button>
+       <button class="btn small" data-act="finale" title="Alle laufenden Session-Timer um 15 Minuten verlängern">+15 Min Finale</button>
        <button class="btn small primary" data-act="cayodone">Abgeschlossen</button>`;
   $("#cayoMap").innerHTML = mapSVG(h);
   renderCd();
@@ -1104,6 +1105,20 @@ document.addEventListener("click", e => {
   if(act === "cayoreset"){
     if(resetArmed){ const h = ensureCayo(); h.slots = {}; h.primary = ""; resetArmed = false; selRoom = null; saveState(); renderCayo(); toast(gen(h.name) + " Cayo geleert"); }
     else { resetArmed = true; renderCayo(); setTimeout(() => { if(resetArmed){ resetArmed = false; renderCayo(); } }, 3500); }
+  }
+  if(act === "finale"){
+    // Produktion pausiert vermutlich im Finale: laufende Session-Timer um 15 Min verlängern
+    const now = Date.now(); settle(now);
+    const backup = JSON.parse(JSON.stringify(state.biz)); let n = 0;
+    state.biz.forEach(bz => bz.timers.forEach(t => {
+      if(!t.armed || !t.onlineOnly || elapsedOf(t, now) >= totalMs(t)) return;
+      t.elapsed -= 15*60000; n++;
+    }));
+    if(!n){ toast("Kein laufender Session-Timer zum Verlängern."); }
+    else {
+      saveState(); renderTimers();
+      toast(n + (n===1 ? " Timer" : " Timer") + " um 15 Min verlängert", {label:"Rückgängig", run: () => { state.biz = backup; settle(); saveState(); renderTimers(true); toast("Verlängerung zurückgenommen"); }});
+    }
   }
   if(act === "cdstart"){ startCd(ensureCayo()); renderCayo(); }
   if(act === "cdreset"){ const h = ensureCayo(); h.cdStart = null; h.cdNote = 0; saveState(); renderCayo(); }
