@@ -365,8 +365,9 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 "use strict";
 /* ---------- Stammdaten ---------- */
 const PRESETS = [
-  {key:"bunker", name:"Bunker", tag:"Waffenhandel", timers:[{label:"Nachschub", min:140, onlineOnly:true, kind:"supply"},{label:"Lager voll", min:700, onlineOnly:true, kind:"stock"}]},
-  {key:"nightclub", name:"Nachtclub", tag:"Lagerhaus", timers:[{label:"Lager voll", min:1200, onlineOnly:true, kind:"stock"},{label:"Tresor", min:48, cycles:5, onlineOnly:true, kind:"stock"}]},
+  {key:"bunker", name:"Bunker", tag:"Waffenhandel", timers:[{label:"Nachschub", min:140, onlineOnly:true, kind:"supply"}]},
+  {key:"nightclub", name:"Nachtclub", tag:"Lagerhaus", timers:[{label:"Lager voll", min:1200, onlineOnly:true, kind:"stock"}]},
+  {key:"nightclubsafe", name:"Tresor", tag:"Nachtclub", vault:true, timers:[{label:"Tresor", min:48, cycles:5, onlineOnly:true, kind:"stock"}]},
   {key:"acid", name:"Acid Lab", tag:"Brickade", timers:[{label:"Nachschub", min:75, onlineOnly:true, kind:"supply"}]},
   {key:"coke", name:"Kokain", tag:"MC", timers:[{label:"Nachschub", min:100, onlineOnly:true, kind:"supply"}]},
   {key:"meth", name:"Meth", tag:"MC", timers:[{label:"Nachschub", min:180, onlineOnly:true, kind:"supply"}]},
@@ -419,7 +420,7 @@ const lsGet = k => { try{ const v = localStorage.getItem(k); return v ? JSON.par
 const lsSet = (k,v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
 
 function makeBiz(preset){
-  return { id: uid(), name: preset.name, tag: preset.tag || "", timers: preset.timers.map(t => ({
+  return { id: uid(), name: preset.name, tag: preset.tag || "", ...(preset.vault ? {vault:true} : {}), timers: preset.timers.map(t => ({
     id: uid(), label: t.label, min: t.min, ...(t.cycles ? {cycles: t.cycles} : {}), onlineOnly: t.onlineOnly, kind: t.kind,
     armed:false, paused:false, elapsed:0, resumedAt:null, notified:false })) };
 }
@@ -643,8 +644,8 @@ function renderTimers(full){
           </div>
         </div>`).join("")}
         <div class="biz-foot">
-          <button class="btn small" data-act="sell" data-id="${b.id}">+ Verkauf eintragen</button>
-          <button class="btn small" data-act="spend" data-id="${b.id}">− Kosten eintragen</button>
+          <button class="btn small" data-act="sell" data-id="${b.id}">${(b.vault || b.tag==="Tresor") ? "+ Tresor geleert" : "+ Verkauf eintragen"}</button>
+          ${(b.vault || b.tag==="Tresor") ? "" : `<button class="btn small" data-act="spend" data-id="${b.id}">− Kosten eintragen</button>`}
         </div>
       </article>`).join("");
   }
@@ -1136,7 +1137,8 @@ document.addEventListener("click", e => {
     if(b.dataset.armed){ state.biz = state.biz.filter(x => x.id !== id); saveState(); renderTimers(true); }
     else { b.dataset.armed = "1"; b.textContent = "Wirklich?"; setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; b.textContent = "Entfernen"; } }, 3500); }
   }
-  if(act === "sell"){ const biz = state.biz.find(x=>x.id===id); openForm("in", biz.tag==="Heist" ? "Heist" : "Business-Verkauf", "", biz.name); }
+  if(act === "sell"){ const biz = state.biz.find(x=>x.id===id); const isVault = biz.vault || biz.tag==="Tresor";
+    openForm("in", biz.tag==="Heist" ? "Heist" : isVault ? "Tresor (Nachtclub, Agentur …)" : "Business-Verkauf", "", biz.vault ? biz.tag : biz.name); }
   if(act === "spend"){ const biz = state.biz.find(x=>x.id===id); openForm("out","Nachschub", "", biz.name); }
   if(act === "addpreset"){
     const pr = PRESETS.find(p => p.key === b.dataset.key); state.biz.push(makeBiz(pr)); saveState(); addOpen = false; renderAddPanel(); renderTimers(true);
