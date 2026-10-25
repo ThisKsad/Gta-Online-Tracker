@@ -84,6 +84,10 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 .bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .5s linear}
 .bar.done i{background:var(--bad)}
+.segbar{display:flex;gap:4px;height:10px}
+.segbar span{flex:1;background:var(--surface2);border-radius:3px;overflow:hidden}
+.segbar span i{display:block;height:100%;width:0;background:var(--accent);opacity:.35;transition:width .5s linear}
+.segbar span.full i{opacity:1}
 .meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted);align-items:center}
 .meta button.dur{border:none;background:none;padding:0;color:var(--muted);text-decoration:underline dotted;text-underline-offset:3px;font-size:12px}
 .tact{display:flex;flex-wrap:wrap;gap:6px}
@@ -359,7 +363,7 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 /* ---------- Stammdaten ---------- */
 const PRESETS = [
   {key:"bunker", name:"Bunker", tag:"Waffenhandel", timers:[{label:"Nachschub", min:140, onlineOnly:true, kind:"supply"},{label:"Lager voll", min:700, onlineOnly:true, kind:"stock"}]},
-  {key:"nightclub", name:"Nachtclub", tag:"Lagerhaus", timers:[{label:"Lager voll", min:1200, onlineOnly:true, kind:"stock"},{label:"Tresor voll", min:960, onlineOnly:true, kind:"stock"}]},
+  {key:"nightclub", name:"Nachtclub", tag:"Lagerhaus", timers:[{label:"Lager voll", min:1200, onlineOnly:true, kind:"stock"},{label:"Tresor", min:48, cycles:5, onlineOnly:true, kind:"stock"}]},
   {key:"acid", name:"Acid Lab", tag:"Brickade", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
   {key:"coke", name:"Kokain", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
   {key:"meth", name:"Meth", tag:"MC", timers:[{label:"Nachschub", min:120, onlineOnly:true, kind:"supply"}]},
@@ -413,7 +417,7 @@ const lsSet = (k,v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch
 
 function makeBiz(preset){
   return { id: uid(), name: preset.name, tag: preset.tag || "", timers: preset.timers.map(t => ({
-    id: uid(), label: t.label, min: t.min, onlineOnly: t.onlineOnly, kind: t.kind,
+    id: uid(), label: t.label, min: t.min, ...(t.cycles ? {cycles: t.cycles} : {}), onlineOnly: t.onlineOnly, kind: t.kind,
     armed:false, paused:false, elapsed:0, resumedAt:null, notified:false })) };
 }
 function defaultState(){
@@ -522,7 +526,8 @@ function changePlayer(){
 }
 
 /* ---------- Timer-Logik ---------- */
-function shouldRun(t){ return t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t) < t.min*60000; }
+const totalMs = t => t.min * (t.cycles || 1) * 60000;
+function shouldRun(t){ return t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t) < totalMs(t); }
 function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? Math.max(0, now - t.resumedAt) : 0); }
 function settle(now = Date.now()){
   // Laufzeiten an den Schaltzustand anpassen (nach Online-/Pause-Wechsel)
@@ -533,7 +538,7 @@ function settle(now = Date.now()){
   }));
 }
 function findTimer(id){ for(const b of state.biz){ const t = b.timers.find(x => x.id === id); if(t) return [b,t]; } return [null,null]; }
-function startTimer(t){ t.armed = true; t.paused = false; t.elapsed = 0; t.notified = false; t.resumedAt = null; settle(); }
+function startTimer(t){ t.armed = true; t.paused = false; t.elapsed = 0; t.notified = false; t.resumedAt = null; t.lastCycle = 0; settle(); }
 
 /* ---------- Ton ---------- */
 let audioCtx = null;
@@ -581,10 +586,21 @@ function syncHeader(){
 
 /* ---------- Render: Timer ---------- */
 function timerStatus(t, now){
-  const total = t.min*60000, el = elapsedOf(t, now), left = total - el;
-  if(!t.armed) return {cls:"st-idle", txt:"Bereit", left: total, pct:0, done:false};
-  if(left <= 0) return {cls:"st-done", txt: t.kind==="supply" ? "Leer" : t.kind==="cooldown" ? "Verfügbar" : "Voll", left:0, pct:100, done:true};
+  const total = totalMs(t), el = elapsedOf(t, now);
+  let left = total - el;
+  const cyc = t.cycles || 1, per = t.min*60000;
+  const doneCycles = Math.min(cyc, Math.floor(Math.max(0, el) / per));
+  if(cyc > 1 && t.armed && left > 0) left = per - (el - doneCycles*per);   // Countdown der laufenden Runde
+  if(!t.armed) return {cls:"st-idle", txt:"Bereit", left: cyc>1 ? per : total, pct:0, done:false, cycles:0};
+  if(total - el <= 0) return {cls:"st-done", txt: t.kind==="supply" ? "Leer" : t.kind==="cooldown" ? "Verfügbar" : "Voll", left:0, pct:100, done:true, cycles:cyc};
   const pct = Math.min(100, el/total*100);
+  if(cyc > 1){
+    const base = {left, pct, done:false, cycles:doneCycles};
+    if(t.paused) return {...base, cls:"st-hold", txt:`${doneCycles}/${cyc} · Pausiert`};
+    if(t.onlineOnly && !state.online) return {...base, cls:"st-hold", txt:`${doneCycles}/${cyc} · Offline`};
+    if(t.resumedAt && t.resumedAt > now) return {...base, cls:"st-hold", txt:"Startet in " + fmtClock(t.resumedAt - now)};
+    return {...base, cls:"st-run", txt:`${doneCycles}/${cyc} voll`};
+  }
   if(t.paused) return {cls:"st-hold", txt:"Pausiert", left, pct, done:false};
   if(t.onlineOnly && !state.online) return {cls:"st-hold", txt:"Offline", left, pct, done:false};
   if(t.resumedAt && t.resumedAt > now) return {cls:"st-hold", txt:"Startet in " + fmtClock(t.resumedAt - now), left, pct, done:false};
@@ -606,10 +622,12 @@ function renderTimers(full){
         <div class="timer" data-timer="${t.id}">
           <div class="trow"><span class="tname">${esc(t.label)}</span><span class="state" data-k="state"></span></div>
           <div class="clock" data-k="clock">--:--</div>
-          <div class="bar" data-k="barw"><i data-k="bar" style="width:0%"></i></div>
+          ${(t.cycles||1) > 1
+            ? `<div class="segbar" data-k="seg">${Array.from({length:t.cycles}, () => `<span><i></i></span>`).join("")}</div>`
+            : `<div class="bar" data-k="barw"><i data-k="bar" style="width:0%"></i></div>`}
           <div class="meta">
             ${editDur===t.id ? `<form class="durform" data-act="durform" data-id="${t.id}"><input id="dur-${t.id}" value="${Math.floor(t.min/60)}:${String(t.min%60).padStart(2,"0")}" aria-label="Dauer (Std:Min)" inputmode="numeric"><button class="btn small primary" type="submit">OK</button><span>Std:Min</span></form>`
-              : `<span>Dauer <button type="button" class="dur" data-act="editdur" data-id="${t.id}">${fmtDur(t.min)}</button></span>`}
+              : `<span>Dauer <button type="button" class="dur" data-act="editdur" data-id="${t.id}">${fmtDur(t.min)}${(t.cycles||1)>1?` × ${t.cycles}`:""}</button></span>`}
             <span>${t.onlineOnly ? "nur in Session" : "läuft immer"}</span>
           </div>
           <div class="tact">
@@ -626,7 +644,7 @@ function renderTimers(full){
   }
   tick();
 }
-function sig(){ return state.biz.map(b => b.id + ":" + b.timers.map(t => t.id+t.min+t.label).join(",")).join("|") + "|" + editDur; }
+function sig(){ return state.biz.map(b => b.id + ":" + b.timers.map(t => t.id+t.min+t.label+(t.cycles||1)).join(",")).join("|") + "|" + editDur; }
 
 function tick(){
   const now = Date.now();
@@ -639,14 +657,29 @@ function tick(){
     if(!el) return;
     const st = el.querySelector('[data-k="state"]'); st.className = "state " + s.cls; st.textContent = s.txt;
     const ck = el.querySelector('[data-k="clock"]'); ck.textContent = fmtClock(s.left); ck.classList.toggle("done", s.done);
-    el.querySelector('[data-k="bar"]').style.width = s.pct + "%";
-    el.querySelector('[data-k="barw"]').classList.toggle("done", s.done);
+    const seg = el.querySelector('[data-k="seg"]');
+    if(seg){
+      const per = t.min*60000, elp = t.armed ? elapsedOf(t, now) : 0;
+      seg.querySelectorAll("span").forEach((sp,i) => {
+        const f = Math.max(0, Math.min(1, (elp - i*per) / per));
+        sp.classList.toggle("full", f >= 1);
+        sp.firstChild.style.width = (f >= 1 ? 100 : f*100) + "%";
+      });
+    } else {
+      el.querySelector('[data-k="bar"]').style.width = s.pct + "%";
+      el.querySelector('[data-k="barw"]').classList.toggle("done", s.done);
+    }
+    if((t.cycles||1) > 1 && t.armed && !s.done){
+      const c = s.cycles || 0;
+      if(t.lastCycle === undefined) t.lastCycle = c;
+      if(c > t.lastCycle){ t.lastCycle = c; toast(b.name + ": " + t.label + " " + c + "/" + t.cycles + " voll"); saveState(); }
+    }
     const pb = el.querySelector('[data-k="pausebtn"]');
     pb.textContent = t.paused ? "Fortsetzen" : "Pause"; pb.disabled = !t.armed || s.done;
   }));
   if(notify.length){
     // abgelaufene Timer anhalten und einmalig melden
-    state.biz.forEach(b => b.timers.forEach(t => { if(t.notified && t.resumedAt && elapsedOf(t,now) >= t.min*60000){ t.elapsed = t.min*60000; t.resumedAt = null; } }));
+    state.biz.forEach(b => b.timers.forEach(t => { if(t.notified && t.resumedAt && elapsedOf(t,now) >= totalMs(t)){ t.elapsed = totalMs(t); t.resumedAt = null; } }));
     saveState(); beep(); toast(notify.join(" · "));
     const base = "GTA Business Tracker"; let n = 0;
     const iv = setInterval(() => { document.title = (n++%2) ? base : "⏰ " + notify[0]; if(n>12){ clearInterval(iv); document.title = base; } }, 900);
@@ -1075,7 +1108,7 @@ document.addEventListener("click", e => {
     openForm("in", "Heist", gen(h.name) + " Durchgang" + (h.primary ? " – " + h.primary : ""), "Cayo Perico");
   }
   if(act === "pause"){ const [,t] = findTimer(id); t.paused = !t.paused; settle(); saveState(); tick(); }
-  if(act === "reset"){ const [,t] = findTimer(id); Object.assign(t,{armed:false,paused:false,elapsed:0,resumedAt:null,notified:false}); saveState(); tick(); }
+  if(act === "reset"){ const [,t] = findTimer(id); Object.assign(t,{armed:false,paused:false,elapsed:0,resumedAt:null,notified:false,lastCycle:0}); saveState(); tick(); }
   if(act === "editdur"){ editDur = id; renderTimers(true); const inp = document.getElementById("dur-"+id); if(inp){ inp.focus(); inp.select(); } }
   if(act === "delbiz"){
     if(b.dataset.armed){ state.biz = state.biz.filter(x => x.id !== id); saveState(); renderTimers(true); }
@@ -1096,7 +1129,7 @@ document.addEventListener("submit", e => {
   e.preventDefault();
   if(f.dataset.act === "durform"){
     const [,t] = findTimer(f.dataset.id); const v = parseDur(document.getElementById("dur-"+t.id).value);
-    if(isFinite(v) && v > 0){ t.min = v; if(elapsedOf(t) < v*60000) t.notified = false; settle(); saveState(); }
+    if(isFinite(v) && v > 0){ t.min = v; if(elapsedOf(t) < totalMs(t)) t.notified = false; settle(); saveState(); }
     editDur = null; renderTimers(true);
   }
   if(f.dataset.act === "cdform"){
