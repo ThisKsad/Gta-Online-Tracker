@@ -79,11 +79,14 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 .st-run{background:var(--good-soft);color:var(--good)}
 .st-hold{background:var(--warn-soft);color:var(--warn)}
 .st-done{background:var(--bad-soft);color:var(--bad)}
+.st-deliv{background:var(--deliv-soft);color:var(--deliv)}
 .clock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;font-weight:600;line-height:1;letter-spacing:-.01em}
 .clock.done{color:var(--bad)}
+.clock.deliv{color:var(--deliv)}
 .bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .5s linear}
 .bar.done i{background:var(--bad)}
+.bar.deliv i{background:var(--deliv)}
 .segbar{display:flex;gap:4px;height:10px}
 .segbar span{flex:1;background:var(--surface2);border-radius:3px;overflow:hidden}
 .segbar span i{display:block;height:100%;width:0;background:var(--accent);opacity:.35;transition:width .5s linear}
@@ -166,9 +169,9 @@ nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--
 .sync{font-size:11px;color:var(--muted)}
 
 /* Cayo */
-:root{--water:#B9D8EC;--gold:#B8860B;--cash:#1F8A4C;--art:#7B4BC4;--unk:#9AA4B2}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--water:#2E5268;--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}}
-:root[data-theme="dark"]{--water:#2E5268;--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}
+:root{--deliv:#2F6FD6;--deliv-soft:#DFE9FB;--water:#B9D8EC;--gold:#B8860B;--cash:#1F8A4C;--art:#7B4BC4;--unk:#9AA4B2}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--deliv:#6FA2FF;--deliv-soft:#17284A;--water:#2E5268;--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}}
+:root[data-theme="dark"]{--deliv:#6FA2FF;--deliv-soft:#17284A;--water:#2E5268;--gold:#E7B83A;--cash:#43C77E;--art:#B48CFF;--unk:#5F6B7B}
 .heists{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .heist{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
 .heist[aria-pressed="true"]{border-color:var(--accent)}
@@ -528,17 +531,19 @@ function changePlayer(){
 /* ---------- Timer-Logik ---------- */
 const totalMs = t => t.min * (t.cycles || 1) * 60000;
 function shouldRun(t){ return t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t) < totalMs(t); }
-function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? Math.max(0, now - t.resumedAt) : 0); }
+const DELIVERY_MIN = 10;   // gekaufter Nachschub trifft nach ca. 10 Min ein
+function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? Math.max(0, now - Math.max(t.resumedAt, t.deliverAt || 0)) : 0); }
 function settle(now = Date.now()){
   // Laufzeiten an den Schaltzustand anpassen (nach Online-/Pause-Wechsel)
   state.biz.forEach(b => b.timers.forEach(t => {
     const run = t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t, now) < totalMs(t);
-    if(t.resumedAt && !run){ t.elapsed += Math.max(0, now - t.resumedAt); t.resumedAt = null; }
+    if(t.resumedAt && !run){ t.elapsed = elapsedOf(t, now); t.resumedAt = null; }
     else if(!t.resumedAt && run){ t.resumedAt = now; }
   }));
 }
 function findTimer(id){ for(const b of state.biz){ const t = b.timers.find(x => x.id === id); if(t) return [b,t]; } return [null,null]; }
-function startTimer(t){ t.armed = true; t.paused = false; t.elapsed = 0; t.notified = false; t.resumedAt = null; t.lastCycle = 0; settle(); }
+function startTimer(t){ t.armed = true; t.paused = false; t.elapsed = 0; t.notified = false; t.resumedAt = null; t.lastCycle = 0;
+  t.deliverAt = t.kind === "supply" ? Date.now() + DELIVERY_MIN*60000 : null; t.delivNote = false; settle(); }
 
 /* ---------- Ton ---------- */
 let audioCtx = null;
@@ -592,6 +597,7 @@ function timerStatus(t, now){
   const doneCycles = Math.min(cyc, Math.floor(Math.max(0, el) / per));
   if(cyc > 1 && t.armed && left > 0) left = per - (el - doneCycles*per);   // Countdown der laufenden Runde
   if(!t.armed) return {cls:"st-idle", txt:"Bereit", left: cyc>1 ? per : total, pct:0, done:false, cycles:0};
+  if(t.deliverAt && t.deliverAt > now){ const dl = t.deliverAt - now; return {cls:"st-deliv", txt:"Lieferung unterwegs", left:dl, pct:(1 - dl/(DELIVERY_MIN*60000))*100, done:false, deliv:true, cycles:0}; }
   if(total - el <= 0) return {cls:"st-done", txt: t.kind==="supply" ? "Leer" : t.kind==="cooldown" ? "Verfügbar" : "Voll", left:0, pct:100, done:true, cycles:cyc};
   const pct = Math.min(100, el/total*100);
   if(cyc > 1){
@@ -628,7 +634,7 @@ function renderTimers(full){
           <div class="meta">
             ${editDur===t.id ? `<form class="durform" data-act="durform" data-id="${t.id}"><input id="dur-${t.id}" value="${Math.floor(t.min/60)}:${String(t.min%60).padStart(2,"0")}" aria-label="Dauer (Std:Min)" inputmode="numeric"><button class="btn small primary" type="submit">OK</button><span>Std:Min</span></form>`
               : `<span>Dauer <button type="button" class="dur" data-act="editdur" data-id="${t.id}">${fmtDur(t.min)}${(t.cycles||1)>1?` × ${t.cycles}`:""}</button></span>`}
-            <span>${t.onlineOnly ? "nur in Session" : "läuft immer"}</span>
+            <span>${t.onlineOnly ? "nur in Session" : "läuft immer"}</span>${t.kind==="supply" ? `<span>+ ${DELIVERY_MIN} Min Lieferung</span>` : ""}
           </div>
           <div class="tact">
             <button class="btn small primary" data-act="start" data-id="${t.id}">${startLabel(t)}</button>
@@ -656,7 +662,8 @@ function tick(){
     if(s.done && t.armed && !t.notified){ t.notified = true; notify.push(b.name + ": " + t.label + " – " + s.txt); }
     if(!el) return;
     const st = el.querySelector('[data-k="state"]'); st.className = "state " + s.cls; st.textContent = s.txt;
-    const ck = el.querySelector('[data-k="clock"]'); ck.textContent = fmtClock(s.left); ck.classList.toggle("done", s.done);
+    const ck = el.querySelector('[data-k="clock"]'); ck.textContent = fmtClock(s.left); ck.classList.toggle("done", s.done); ck.classList.toggle("deliv", !!s.deliv);
+    if(t.armed && t.deliverAt && t.deliverAt <= now && !t.delivNote){ t.delivNote = true; toast(b.name + ": Nachschub eingetroffen, Timer läuft"); saveState(); }
     const seg = el.querySelector('[data-k="seg"]');
     if(seg){
       const per = t.min*60000, elp = t.armed ? elapsedOf(t, now) : 0;
@@ -667,7 +674,7 @@ function tick(){
       });
     } else {
       el.querySelector('[data-k="bar"]').style.width = s.pct + "%";
-      el.querySelector('[data-k="barw"]').classList.toggle("done", s.done);
+      el.querySelector('[data-k="barw"]').classList.toggle("done", s.done); el.querySelector('[data-k="barw"]').classList.toggle("deliv", !!s.deliv);
     }
     if((t.cycles||1) > 1 && t.armed && !s.done){
       const c = s.cycles || 0;
@@ -675,7 +682,7 @@ function tick(){
       if(c > t.lastCycle){ t.lastCycle = c; toast(b.name + ": " + t.label + " " + c + "/" + t.cycles + " voll"); saveState(); }
     }
     const pb = el.querySelector('[data-k="pausebtn"]');
-    pb.textContent = t.paused ? "Fortsetzen" : "Pause"; pb.disabled = !t.armed || s.done;
+    pb.textContent = t.paused ? "Fortsetzen" : "Pause"; pb.disabled = !t.armed || s.done || !!s.deliv;
   }));
   if(notify.length){
     // abgelaufene Timer anhalten und einmalig melden
@@ -1108,7 +1115,7 @@ document.addEventListener("click", e => {
     openForm("in", "Heist", gen(h.name) + " Durchgang" + (h.primary ? " – " + h.primary : ""), "Cayo Perico");
   }
   if(act === "pause"){ const [,t] = findTimer(id); t.paused = !t.paused; settle(); saveState(); tick(); }
-  if(act === "reset"){ const [,t] = findTimer(id); Object.assign(t,{armed:false,paused:false,elapsed:0,resumedAt:null,notified:false,lastCycle:0}); saveState(); tick(); }
+  if(act === "reset"){ const [,t] = findTimer(id); Object.assign(t,{armed:false,paused:false,elapsed:0,resumedAt:null,notified:false,lastCycle:0,deliverAt:null,delivNote:false}); saveState(); tick(); }
   if(act === "editdur"){ editDur = id; renderTimers(true); const inp = document.getElementById("dur-"+id); if(inp){ inp.focus(); inp.select(); } }
   if(act === "delbiz"){
     if(b.dataset.armed){ state.biz = state.biz.filter(x => x.id !== id); saveState(); renderTimers(true); }
