@@ -532,7 +532,7 @@ function elapsedOf(t, now = Date.now()){ return t.elapsed + (t.resumedAt ? Math.
 function settle(now = Date.now()){
   // Laufzeiten an den Schaltzustand anpassen (nach Online-/Pause-Wechsel)
   state.biz.forEach(b => b.timers.forEach(t => {
-    const run = t.armed && !t.paused && (!t.onlineOnly || state.online);
+    const run = t.armed && !t.paused && (!t.onlineOnly || state.online) && elapsedOf(t, now) < totalMs(t);
     if(t.resumedAt && !run){ t.elapsed += Math.max(0, now - t.resumedAt); t.resumedAt = null; }
     else if(!t.resumedAt && run){ t.resumedAt = now; }
   }));
