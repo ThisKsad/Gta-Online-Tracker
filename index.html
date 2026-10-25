@@ -255,9 +255,11 @@ nav.tabs button{white-space:nowrap}
 .vsite > header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .vsite > header h3{margin:0;font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;letter-spacing:.02em}
 .vsite > header span{font-size:12px;color:var(--muted)}
-.vrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)}
+.vrow{display:grid;grid-template-columns:96px minmax(0,1fr) auto auto;gap:4px 14px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)}
 .vrow:last-child{border-bottom:none}
 .vrow .vn{min-width:0}
+.vrow .vimg{width:96px;aspect-ratio:16/9;border-radius:6px;background:var(--surface2);overflow:hidden;max-width:100%}
+.vrow .vimg img{width:100%;height:100%;object-fit:cover;display:block}
 .vrow .vn b{font-weight:600;font-size:14px}
 .vrow .vn small{display:block;color:var(--muted);font-size:12px}
 .vrow .vp{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;text-align:right;white-space:nowrap}
@@ -265,7 +267,7 @@ nav.tabs button{white-space:nowrap}
 .vrow.rem{opacity:.55}
 .vrow .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--surface2);color:var(--muted);margin-left:6px}
 .vmore{padding:10px 14px}
-@media (max-width:560px){.vrow{grid-template-columns:minmax(0,1fr) auto}.vrow .vt{grid-column:2;min-width:0}.vtools #vMax{flex:1 1 140px}}
+@media (max-width:560px){.vrow{grid-template-columns:80px minmax(0,1fr) auto}.vrow .vimg{width:80px;grid-row:span 2}.vrow .vt{grid-column:3;min-width:0}.vtools #vMax{flex:1 1 140px}}
 @media (max-width:720px){
   .panels{grid-template-columns:minmax(0,1fr)}
   .kpis{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -338,7 +340,7 @@ nav.tabs button{white-space:nowrap}
     </div>
     <div class="chips" id="vSites"></div>
     <div id="vList" class="vlist"><div class="empty">Fahrzeugliste wird geladen …</div></div>
-    <p class="hint">Preise in GTA$ für GTA Online. Rabattpreis = Preis nach Freischaltung (z. B. durch Missionen). Datenstand: gtacars.net, Oktober 2026. Rockstar ändert das Angebot regelmäßig.</p>
+    <p class="hint">Preise in GTA$ für GTA Online. Rabattpreis = Preis nach Freischaltung (z. B. durch Missionen). Daten und Bilder: gtacars.net, Stand Oktober 2026. Rockstar ändert das Angebot regelmäßig.</p>
   </section>
 
   <section id="view-kasse" hidden style="flex-direction:column;gap:14px">
@@ -893,7 +895,7 @@ async function loadVehicles(){
   if(vehicles || vLoading) { if(vehicles) renderVehicles(); return; }
   if(!sb){ $("#vList").innerHTML = `<div class="empty">Die Fahrzeugliste braucht eine Verbindung zur Datenbank.</div>`; return; }
   vLoading = true;
-  const { data, error } = await sb.from("gta_vehicles").select("name,manufacturer,class,site,price,trade_price,removed,year").limit(2000);
+  const { data, error } = await sb.from("gta_vehicles").select("name,manufacturer,class,site,price,trade_price,removed,year,image").limit(2000);
   vLoading = false;
   if(error){ $("#vList").innerHTML = `<div class="empty">Fahrzeugliste konnte nicht geladen werden. Lade die Seite neu.</div>`; return; }
   vehicles = data;
@@ -921,6 +923,7 @@ function renderVehicles(){
     const rows = list.filter(v=>v.site===id).sort(cmp), open = vExpanded[id] || rows.length <= LIMIT, shown = open ? rows : rows.slice(0, LIMIT);
     return `<section class="vsite"><header><h3>${esc(name)}</h3><span>${esc(desc)} · ${rows.length} Fahrzeuge</span></header>
       ${shown.map(v => `<div class="vrow ${v.removed?"rem":""}">
+        <div class="vimg">${v.image ? `<img src="https://gtacars.net/images/${esc(v.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</div>
         <div class="vn"><b>${esc(v.name)}</b>${v.removed?`<span class="badge">nicht mehr im Angebot</span>`:""}<small>${esc([v.manufacturer, VCLASS[v.class]||v.class, v.year].filter(Boolean).join(" · "))}</small></div>
         <span class="vp">${money(v.price)}</span>
         <span class="vt">${v.trade_price ? "Rabatt " + money(v.trade_price) : ""}</span></div>`).join("")}
